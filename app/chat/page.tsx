@@ -153,8 +153,8 @@ function Sidebar({ open, onToggle, confirmed }: SidebarProps) {
       {/* top row */}
       <div className="flex h-12 items-center gap-2 px-3">
         {open && (
-          <span className="font-chella flex-1 text-base leading-none text-white/70">
-            Notionchella
+          <span className="flex-1 text-xs font-semibold uppercase tracking-widest text-white/50">
+            Events
           </span>
         )}
         <button
@@ -271,7 +271,7 @@ export default function ChatPage() {
   return (
     <ConfirmedCtx.Provider value={{ confirmed, onConfirmed: setConfirmed }}>
       <AssistantRuntimeProvider runtime={runtime}>
-        <div className="flex h-screen overflow-hidden bg-[#C38F6C]">
+        <div className="flex h-[calc(100vh-3rem)] overflow-hidden bg-[#C38F6C]">
           {/* collapsible sidebar */}
           <Sidebar
             open={sidebarOpen}

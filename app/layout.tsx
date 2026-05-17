@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import localFont from "next/font/local";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SiteHeader } from "@/components/site-header";
 
 import "./globals.css";
 
@@ -37,7 +38,10 @@ export default function RootLayout({
   return (
       <html lang="en" className={`${inter.variable} ${chellaType.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          <SiteHeader />
+          {children}
+        </TooltipProvider>
       </body>
     </html>
   );
