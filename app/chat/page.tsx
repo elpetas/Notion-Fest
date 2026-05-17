@@ -1,23 +1,10 @@
 /**
-<<<<<<< HEAD
- * Chat page — assistant-ui Thread with workspace context pre-loaded from localStorage.
- * hubTitle (event name) is passed to every API request so the agent already knows
- * what event is being planned and won't ask for redundant info.
-=======
  * Chat page — assistant-ui Thread backed by the /api/chat streaming route.
  * Onboarding: Eventbrite → Instagram → Artist roster → Notion.
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
  */
 
 "use client";
 
-<<<<<<< HEAD
-import { createContext, useContext, useState } from "react";
-import {
-  AssistantRuntimeProvider,
-  useAssistantToolUI,
-} from "@assistant-ui/react";
-=======
 import {
   createContext,
   useContext,
@@ -27,29 +14,21 @@ import {
   type ReactNode,
 } from "react";
 import { AssistantRuntimeProvider, useAui, useAssistantToolUI } from "@assistant-ui/react";
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
 import {
   useChatRuntime,
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
-<<<<<<< HEAD
-=======
 import { OnboardingToolUIs } from "@/components/chat/onboarding-tool-uis";
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
 import { Thread } from "@/components/assistant-ui/thread";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-<<<<<<< HEAD
-import { ArrowLeft } from "lucide-react";
-=======
 import {
   clearPendingOnboarding,
   hasPendingOnboarding,
   readPendingOnboarding,
 } from "@/lib/onboarding-pending-storage";
 import type { PendingOnboardingData } from "@/types/onboarding-pending";
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
 import { readWorkspacePrefs } from "@/lib/workspace-storage";
 import { chellaType } from "@/lib/fonts/chella-type";
 import type { FlushPendingResult } from "@/lib/onboarding/flush-pending-server";
@@ -60,13 +39,7 @@ import type {
   NotionSetupResponse,
 } from "@/types/festival";
 
-<<<<<<< HEAD
-// ---------------------------------------------------------------------------
-// Context — lets the tool UI pass confirmed settings up to the page
-// ---------------------------------------------------------------------------
-=======
 const KICKOFF_KEY = "notionFestChatKickoff";
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
 
 interface ConfirmedCtxValue {
   confirmed: FestivalSettings | null;
@@ -78,11 +51,6 @@ const ConfirmedCtx = createContext<ConfirmedCtxValue>({
   onConfirmed: () => {},
 });
 
-<<<<<<< HEAD
-// ---------------------------------------------------------------------------
-// Tool UI — renders inline in the Thread for confirmFestivalSettings calls
-// ---------------------------------------------------------------------------
-=======
 function ConfirmSettingsToolPart({
   toolPart,
 }: {
@@ -121,42 +89,12 @@ function ConfirmSettingsToolPart({
     </div>
   );
 }
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
 
 function FestivalSettingsToolUI() {
   useAssistantToolUI({
     toolName: "confirmFestivalSettings",
     render(toolPart) {
-<<<<<<< HEAD
-      const result = toolPart.result as FestivalSettings | undefined;
-      const isDone = toolPart.status.type === "complete";
-
-      if (isDone && result) {
-        onConfirmed(result);
-      }
-
-      return (
-        <div className="mt-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm text-white/90 backdrop-blur-sm">
-          {isDone ? (
-            <>
-              <p className="font-medium">Festival settings locked in ✓</p>
-              {result ? (
-                <ul className="mt-1.5 space-y-0.5 text-white/75 text-xs">
-                  <li>Genre: {result.genre}</li>
-                  <li>Budget: {result.budget}</li>
-                  <li>Dates: {result.dateRange}</li>
-                  <li>Vibe: {result.vibe}</li>
-                </ul>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-white/70">Confirming festival settings…</p>
-          )}
-        </div>
-      );
-=======
       return <ConfirmSettingsToolPart toolPart={toolPart} />;
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
     },
   });
 
@@ -166,9 +104,6 @@ function FestivalSettingsToolUI() {
 function ChatKickoff() {
   const aui = useAui();
 
-<<<<<<< HEAD
-function NotionReadyCard({ confirmed }: { confirmed: FestivalSettings }) {
-=======
   useEffect(() => {
     try {
       if (sessionStorage.getItem(KICKOFF_KEY)) return;
@@ -204,7 +139,6 @@ function HubExportBar({
   onHubCreated,
 }: HubExportBarProps) {
   const aui = useAui();
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
   const [notionState, setNotionState] = useState<
     | { kind: "idle" }
     | { kind: "loading"; phase: "hub" | "worker" }
@@ -245,9 +179,6 @@ function HubExportBar({
 
       const body = {
         ...confirmed,
-<<<<<<< HEAD
-        ...(prefs.parentPageUrl.trim() ? { parentPageUrl: prefs.parentPageUrl.trim() } : {}),
-=======
         budget: confirmed.budget.trim(),
         genre: confirmed.genre.trim(),
         dateRange: confirmed.dateRange.trim() || "TBD",
@@ -255,7 +186,6 @@ function HubExportBar({
         ...(prefs.parentPageUrl.trim()
           ? { parentPageUrl: prefs.parentPageUrl.trim() }
           : {}),
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
         ...(prefs.hubTitle.trim() ? { hubTitle: prefs.hubTitle.trim() } : {}),
         pending: pending as PendingOnboardingData | null,
         ...(ebUrl ? { eventbriteUrl: ebUrl } : {}),
@@ -329,39 +259,15 @@ function HubExportBar({
   return (
     <section
       aria-labelledby="notion-ready-heading"
-      className="mx-auto w-full max-w-2xl rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md"
+      className="rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md"
     >
       <h2 id="notion-ready-heading" className="text-base font-semibold tracking-tight">
-<<<<<<< HEAD
-        Ready for Notion
-=======
         Deploy your worker
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
       </h2>
       <p className="mt-0.5 text-sm text-white/70">
         Creates your festival hub, syncs onboarding data, deploys the Notion Worker with{" "}
         <code className="text-xs">ntn workers deploy</code> in Vercel Sandbox, and posts a summary in chat.
       </p>
-<<<<<<< HEAD
-
-      <dl className="mt-4 grid gap-2.5 border-t border-white/20 pt-4 text-sm md:grid-cols-2">
-        {(
-          [
-            ["Budget", confirmed.budget],
-            ["Genre", confirmed.genre],
-            ["Dates", confirmed.dateRange],
-            ["Vibe", confirmed.vibe],
-          ] as [string, string][]
-        ).map(([label, value]) => (
-          <div key={label} className="space-y-0.5">
-            <dt className="text-xs font-medium uppercase tracking-wide text-white/50">{label}</dt>
-            <dd className="font-medium">{value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
-=======
       <ul className="mt-3 space-y-0.5 border-t border-white/20 pt-3 text-xs text-white/75">
         <li>Budget: {confirmed.budget}</li>
         <li>Genre: {confirmed.genre}</li>
@@ -369,7 +275,6 @@ function HubExportBar({
         <li>Vibe: {confirmed.vibe}</li>
       </ul>
       <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
         <Button
           onClick={() => void handleDeployWorker()}
           disabled={notionState.kind === "loading"}
@@ -394,35 +299,17 @@ function HubExportBar({
             Open in Notion ↗
           </a>
         ) : null}
-        {notionState.kind === "error" ? (
-          <p className="text-red-200 text-sm">{notionState.message}</p>
-        ) : null}
       </div>
-<<<<<<< HEAD
-=======
       {notionState.kind === "ok" && notionState.syncNote ? (
         <p className="mt-3 text-sm text-emerald-200/90">{notionState.syncNote}</p>
       ) : null}
       {notionState.kind === "error" ? (
         <p className="mt-3 text-sm text-red-200">{notionState.message}</p>
       ) : null}
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
     </section>
   );
 }
 
-<<<<<<< HEAD
-// ---------------------------------------------------------------------------
-// Inner content — inside AssistantRuntimeProvider to use tool UI hooks
-// ---------------------------------------------------------------------------
-
-function ChatContent({ confirmed }: { confirmed: FestivalSettings | null }) {
-  return (
-    <div className="flex min-w-0 flex-1 flex-col">
-      {/* registers the tool UI — no visual output */}
-      <FestivalSettingsToolUI />
-      <Thread />
-=======
 function ChatContent({
   confirmed,
   workspace,
@@ -476,7 +363,6 @@ function ChatContent({
         </p>
       ) : null}
 
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
     </div>
   );
 }
@@ -523,34 +409,24 @@ export default function ChatPage() {
         } catch {
           // ignore
         }
+        // read fresh on every send so it picks up prefs set after mount
+        const prefs = readWorkspacePrefs();
         return {
           body: {
             ...body,
             messages,
             ...(ws?.hubPageId ? { workspace: ws } : {}),
             onboarding: onboardingRef.current,
+            // pass event name so agent skips asking for it
+            ...(prefs.hubTitle.trim() ? { hubTitle: prefs.hubTitle.trim() } : {}),
           },
         };
       },
     }),
   );
 
-  // read prefs synchronously (localStorage) — safe in "use client" components
-  const prefs = readWorkspacePrefs();
-
   const runtime = useChatRuntime({
-<<<<<<< HEAD
-    transport: new AssistantChatTransport({
-      api: "/api/chat",
-      // pass event context with every request so the agent has it from message 1
-      body: {
-        ...(prefs.hubTitle.trim() ? { hubTitle: prefs.hubTitle.trim() } : {}),
-        ...(prefs.parentPageUrl.trim() ? { parentPageUrl: prefs.parentPageUrl.trim() } : {}),
-      },
-    }),
-=======
     transport: transportRef.current,
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
   });
 
   const showDeployBar = Boolean(confirmed) && !workspace?.hubPageUrl;
@@ -558,40 +434,14 @@ export default function ChatPage() {
   return (
     <ConfirmedCtx.Provider value={{ confirmed, onConfirmed: setConfirmed }}>
       <AssistantRuntimeProvider runtime={runtime}>
-<<<<<<< HEAD
-        <div className="flex h-screen flex-col overflow-hidden bg-[#C38F6C]">
-          {/* minimal top bar — just a home link */}
-          <div className="flex shrink-0 items-center px-5 pt-4 pb-1">
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white/80 transition-colors"
-=======
         <div className="flex h-dvh flex-col overflow-hidden bg-[#C38F6C]">
           <header className="z-20 flex shrink-0 items-center justify-between border-b border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
             <Link
               href="/"
               className={`${chellaType.className} text-xl leading-none text-white drop-shadow-sm transition-opacity hover:opacity-80`}
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
             >
-              <ArrowLeft className="size-3" />
-              Home
+              Notionchella
             </Link>
-<<<<<<< HEAD
-            {prefs.hubTitle && (
-              <span className="ml-auto text-sm font-semibold text-white/80">
-                {prefs.hubTitle}
-              </span>
-            )}
-          </div>
-
-          {/* thread fills all remaining height */}
-          <ChatContent confirmed={confirmed} />
-
-          {/* notion ready card appears below thread once settings confirmed */}
-          {confirmed ? (
-            <div className="shrink-0 px-4 pb-5">
-              <NotionReadyCard confirmed={confirmed} />
-=======
             <Link
               href="/sync"
               className="text-sm text-white/80 underline-offset-2 hover:text-white hover:underline"
@@ -631,7 +481,6 @@ export default function ChatPage() {
                   onHubCreated={handleHubCreated}
                 />
               </div>
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
             </div>
           ) : null}
         </div>

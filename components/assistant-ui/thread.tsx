@@ -78,21 +78,11 @@ export const Thread: FC = () => {
           </div>
         </ThreadPrimitive.Viewport>
 
-<<<<<<< HEAD
-          {/* composer footer sits over the glass container background */}
-          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex flex-col gap-4 overflow-visible pb-4 md:pb-6">
-            <ThreadScrollToBottom />
-            <Composer />
-          </ThreadPrimitive.ViewportFooter>
-        </div>
-      </ThreadPrimitive.Viewport>
-=======
         <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer z-10 flex shrink-0 flex-col gap-2 border-t border-white/20 bg-white/10 pt-3 pb-4 backdrop-blur-md md:pb-5">
           <ThreadScrollToBottom />
           <Composer />
         </ThreadPrimitive.ViewportFooter>
       </div>
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
     </ThreadPrimitive.Root>
   );
 };
@@ -114,13 +104,6 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   return (
-<<<<<<< HEAD
-    <div className="aui-thread-welcome-root my-auto flex grow flex-col items-center justify-center">
-      <div className="flex flex-col items-center gap-4 text-center">
-        {/* "N" icon — Notionchella monogram */}
-        <div className="flex size-14 items-center justify-center rounded-xl border border-white/30 bg-white/15 backdrop-blur-sm shadow-sm">
-          <span className="text-2xl font-bold text-white leading-none select-none">N</span>
-=======
     <div className="aui-thread-welcome-root my-auto flex grow flex-col">
       <div className="aui-thread-welcome-center flex w-full grow flex-col items-center justify-center">
         <div className="aui-thread-welcome-message flex size-full flex-col justify-center px-4">
@@ -130,11 +113,7 @@ const ThreadWelcome: FC = () => {
           <p className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-white/70 text-xl delay-75 duration-200">
             Start with your Eventbrite link — we&apos;ll pull dates, venue, and capacity, then sync Instagram and your artist roster to Notion.
           </p>
->>>>>>> d185e4fa291796d474e37747070634a97f2084d4
         </div>
-        <p className="text-white/75 text-base leading-snug">
-          talk to me, i&apos;m here to help..
-        </p>
       </div>
       <ThreadSuggestions />
     </div>
@@ -178,10 +157,10 @@ const ComposerAction: FC = () => {
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <ComposerAddAttachment />
       <AuiIf condition={(s) => !s.thread.isRunning}>
-        <ComposerPrimitive.Send render={<TooltipIconButton tooltip="Send message" side="bottom" type="button" variant="default" size="icon" className="aui-composer-send size-8 rounded-full shadow-none" aria-label="Send message" />}><ArrowUpIcon className="aui-composer-send-icon size-4" /></ComposerPrimitive.Send>
+        <ComposerPrimitive.Send render={<TooltipIconButton tooltip="Send message" side="bottom" type="button" variant="default" size="icon" className="aui-composer-send size-8 rounded-full" aria-label="Send message" />}><ArrowUpIcon className="aui-composer-send-icon size-4" /></ComposerPrimitive.Send>
       </AuiIf>
       <AuiIf condition={(s) => s.thread.isRunning}>
-        <ComposerPrimitive.Cancel render={<Button type="button" variant="default" size="icon" className="aui-composer-cancel size-8 rounded-full shadow-none" aria-label="Stop generating" />}><SquareIcon className="aui-composer-cancel-icon size-3 fill-current" /></ComposerPrimitive.Cancel>
+        <ComposerPrimitive.Cancel render={<Button type="button" variant="default" size="icon" className="aui-composer-cancel size-8 rounded-full" aria-label="Stop generating" />}><SquareIcon className="aui-composer-cancel-icon size-3 fill-current" /></ComposerPrimitive.Cancel>
       </AuiIf>
     </div>
   );
