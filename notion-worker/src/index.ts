@@ -240,19 +240,11 @@ worker.tool("generateDraftContent", {
 worker.tool("planFestivalCalendar", {
   title: "Plan Festival Calendar",
   description:
-    "Analyzes the Notion festival workspace (ticket tiers, venues, roster, social schedule, logistics) and returns a marketing + logistics calendar with suggested post dates and ops tasks. Set writeToNotion to true to create rows in Social schedule and Merchandise & logistics checklist. Requires NOTIONCHELLA_APP_URL.",
+    "Analyzes the Notion festival workspace and returns a marketing + logistics calendar. HACKATHON DEMO MODE: No parameters required! Auto-discovers the first page in workspace and all databases. Optionally set writeToNotion to true to create rows. Requires NOTIONCHELLA_APP_URL.",
   schema: j.object({
-    hubPageId: j.string(),
-    venuesDbId: j.string(),
-    ticketTiersDbId: j.string(),
-    rosterDbId: j.string(),
-    socialDbId: j.string(),
-    logisticsDbId: j.string(),
-    adCopiesDbId: j.string(),
-    flyerDbId: j.string(),
-    writeToNotion: j.string(),
-    weeksBefore: j.string(),
-    weeksAfter: j.string(),
+    writeToNotion: j.string().nullable(),
+    weeksBefore: j.string().nullable(),
+    weeksAfter: j.string().nullable(),
   }),
   hints: { readOnlyHint: false },
   execute: async (input) => {
@@ -263,27 +255,12 @@ worker.tool("planFestivalCalendar", {
       });
     }
 
+    // Hackathon demo: no IDs required, API auto-discovers everything
     const body: Record<string, unknown> = {
       writeToNotion: input.writeToNotion === "true",
-      weeksBefore: parseInt(input.weeksBefore, 10) || 4,
-      weeksAfter: parseInt(input.weeksAfter, 10) || 1,
+      weeksBefore: parseInt(input.weeksBefore ?? "4", 10) || 4,
+      weeksAfter: parseInt(input.weeksAfter ?? "1", 10) || 1,
     };
-
-    const idFields = [
-      "hubPageId",
-      "venuesDbId",
-      "ticketTiersDbId",
-      "rosterDbId",
-      "socialDbId",
-      "logisticsDbId",
-      "adCopiesDbId",
-      "flyerDbId",
-    ] as const;
-
-    for (const key of idFields) {
-      const val = input[key].trim();
-      if (val) body[key] = val;
-    }
 
     const res = await fetch(`${appUrl.replace(/\/$/, "")}/api/calendar/plan`, {
       method: "POST",
