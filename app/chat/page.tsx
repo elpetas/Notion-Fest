@@ -1,71 +1,104 @@
 /**
- * Guided festival planner chat — streams from /api/chat and can scaffold Notion from tool output.
+ * Chat page — assistant-ui Thread backed by the /api/chat streaming route.
+ * Background is #C38F6C (warm terracotta) with glassmorphism containers.
+ * Confirmed festival settings bubble up via context → "Ready for Notion" card.
  */
 
 "use client";
 
-import { useChat } from "@ai-sdk/react";
-import { SendHorizontal } from "lucide-react";
-import Link from "next/link";
-import { useMemo, useState } from "react";
-
+import {
+  createContext,
+  useContext,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  AssistantRuntimeProvider,
+  useAssistantToolUI,
+} from "@assistant-ui/react";
+import {
+  useChatRuntime,
+  AssistantChatTransport,
+} from "@assistant-ui/react-ai-sdk";
+import localFont from "next/font/local";
+import { Thread } from "@/components/assistant-ui/thread";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import Link from "next/link";
+import { readWorkspacePrefs } from "@/lib/workspace-storage";
 import type { FestivalSettings, NotionSetupResponse } from "@/types/festival";
-import type { UIMessage } from "ai";
 
-function extractConfirmedSettings(
-  messages: UIMessage[],
-): FestivalSettings | null {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (message.role !== "assistant") {
-      continue;
-    }
-    for (const part of message.parts) {
-      if (part.type !== "tool-confirmFestivalSettings") {
-        continue;
+const chellaType = localFont({
+  src: "../fonts/ChellaType-Regular.ttf",
+  display: "swap",
+});
+
+// ---------------------------------------------------------------------------
+// Context — lets the ConfirmFestivalSettings tool UI pass settings up
+// ---------------------------------------------------------------------------
+
+interface ConfirmedCtxValue {
+  confirmed: FestivalSettings | null;
+  onConfirmed: (s: FestivalSettings) => void;
+}
+
+const ConfirmedCtx = createContext<ConfirmedCtxValue>({
+  confirmed: null,
+  onConfirmed: () => {},
+});
+
+// ---------------------------------------------------------------------------
+// Tool UI — renders inline when the agent calls confirmFestivalSettings
+// ---------------------------------------------------------------------------
+
+function FestivalSettingsToolUI() {
+  const { onConfirmed } = useContext(ConfirmedCtx);
+
+  useAssistantToolUI({
+    toolName: "confirmFestivalSettings",
+    render(toolPart) {
+      const result = toolPart.result as FestivalSettings | undefined;
+      const isDone = toolPart.status.type === "complete";
+
+      // bubble confirmed settings up to the page state
+      if (isDone && result) {
+        onConfirmed(result);
       }
-      if (part.state === "output-available" && part.output) {
-        return part.output as FestivalSettings;
-      }
-    }
-  }
+
+      return (
+        <div className="mt-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm text-white/90 backdrop-blur-sm">
+          {isDone ? (
+            <>
+              <p className="font-medium">Festival settings locked in ✓</p>
+              {result ? (
+                <ul className="mt-1.5 space-y-0.5 text-white/75 text-xs">
+                  <li>Genre: {result.genre}</li>
+                  <li>Budget: {result.budget}</li>
+                  <li>Dates: {result.dateRange}</li>
+                  <li>Vibe: {result.vibe}</li>
+                </ul>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-white/70">Confirming festival settings…</p>
+          )}
+        </div>
+      );
+    },
+  });
+
   return null;
 }
 
-function ThinkingDots() {
-  const delaysMs = [0, 160, 320];
-  return (
-    <div className="text-muted-foreground flex items-center gap-1.5 pl-1">
-      <span className="sr-only">Assistant is thinking</span>
-      {delaysMs.map((delay) => (
-        <span
-          key={delay}
-          className="bg-muted-foreground inline-block size-1.5 rounded-full"
-          style={{
-            animation: "notion-thinking-dot 1.4s ease-in-out infinite",
-            animationDelay: `${delay}ms`,
-          }}
-        />
-      ))}
-    </div>
-  );
+// ---------------------------------------------------------------------------
+// "Ready for Notion" card — shown once settings are confirmed
+// ---------------------------------------------------------------------------
+
+interface NotionCardProps {
+  confirmed: FestivalSettings;
 }
 
-export function FestivalChatPageContent() {
-  const [input, setInput] = useState("");
-  const { messages, sendMessage, status, error } = useChat();
-
-  const confirmed = useMemo(
-    () => extractConfirmedSettings(messages),
-    [messages],
-  );
-
-  const isBusy = status === "streaming" || status === "submitted";
-
+function NotionReadyCard({ confirmed }: NotionCardProps) {
   const [notionState, setNotionState] = useState<
     | { kind: "idle" }
     | { kind: "loading" }
@@ -74,15 +107,20 @@ export function FestivalChatPageContent() {
   >({ kind: "idle" });
 
   async function handleSendToNotion() {
-    if (!confirmed) {
-      return;
-    }
     setNotionState({ kind: "loading" });
     try {
+      const prefs = readWorkspacePrefs();
+      const body = {
+        ...confirmed,
+        ...(prefs.parentPageUrl.trim()
+          ? { parentPageUrl: prefs.parentPageUrl.trim() }
+          : {}),
+        ...(prefs.hubTitle.trim() ? { hubTitle: prefs.hubTitle.trim() } : {}),
+      };
       const res = await fetch("/api/notion/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(confirmed),
+        body: JSON.stringify(body),
       });
       const data: unknown = await res.json();
       if (!res.ok) {
@@ -93,232 +131,135 @@ export function FestivalChatPageContent() {
         setNotionState({ kind: "error", message: msg });
         return;
       }
-      setNotionState({
-        kind: "ok",
-        data: data as NotionSetupResponse,
-      });
+      setNotionState({ kind: "ok", data: data as NotionSetupResponse });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Network error calling Notion";
-      setNotionState({ kind: "error", message });
+      setNotionState({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Network error",
+      });
     }
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-6 py-8 md:py-10">
-      <header className="space-y-2">
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight md:text-3xl">
-          Festival planner
-        </h1>
-        <p className="text-muted-foreground max-w-xl text-sm leading-relaxed md:text-base">
-          Work through budget, genre, dates, and vibe — then send a structured
-          hub to Notion when the agent confirms your details.
-        </p>
-      </header>
-
-      <section
-        aria-labelledby="chat-heading"
-        className="flex min-h-0 flex-1 flex-col gap-4"
+    <section
+      aria-labelledby="notion-ready-heading"
+      className="rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md"
+    >
+      <h2
+        id="notion-ready-heading"
+        className="text-base font-semibold tracking-tight"
       >
-        <h2 id="chat-heading" className="sr-only">
-          Planning chat
-        </h2>
-        <div className="border-border bg-background flex min-h-[22rem] flex-1 flex-col overflow-hidden rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] md:min-h-[26rem]">
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-4 p-4 md:p-5">
-              {messages.length === 0 ? (
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Describe the festival you have in mind — mood, rough dates,
-                  genre, and any budget hints. The agent will clarify before
-                  locking settings.
-                </p>
-              ) : null}
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex w-full",
-                    message.role === "user" ? "justify-end" : "justify-start",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[min(100%,28rem)] px-3.5 py-2.5 text-sm leading-relaxed",
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-2xl rounded-br-md shadow-sm"
-                        : "border-border bg-card text-card-foreground rounded-2xl rounded-bl-md border shadow-sm",
-                    )}
-                  >
-                    {message.parts.map((part, idx) => {
-                      if (part.type === "text") {
-                        return (
-                          <p key={idx} className="whitespace-pre-wrap">
-                            {part.text}
-                          </p>
-                        );
-                      }
-                      if (part.type === "tool-confirmFestivalSettings") {
-                        const label =
-                          part.state === "output-available"
-                            ? "Festival settings locked in"
-                            : part.state === "output-error"
-                              ? "Could not lock settings"
-                              : "Confirming festival settings…";
-                        return (
-                          <p
-                            key={idx}
-                            className={cn(
-                              "mt-2 border-t pt-2 text-xs",
-                              message.role === "user"
-                                ? "border-primary-foreground/25 opacity-95"
-                                : "border-border opacity-90",
-                            )}
-                          >
-                            {label}
-                          </p>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-                </div>
-              ))}
-              {isBusy ? (
-                <div className="flex justify-start">
-                  <ThinkingDots />
-                </div>
-              ) : null}
-            </div>
-          </ScrollArea>
-          <div className="border-border bg-background border-t p-3 md:p-4">
-            {error ? (
-              <p className="text-destructive mb-3 text-sm">{error.message}</p>
-            ) : null}
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const text = input.trim();
-                if (!text || isBusy) {
-                  return;
-                }
-                void sendMessage({ text });
-                setInput("");
-              }}
-            >
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Message the festival planner…"
-                disabled={isBusy}
-                className="border-border bg-card focus-visible:ring-primary/25 h-10 flex-1 rounded-xl border px-4 shadow-none md:h-11"
-              />
-              <Button
-                type="submit"
-                size="icon-lg"
-                disabled={isBusy || !input.trim()}
-                className="rounded-xl shrink-0"
-                aria-label="Send message"
-              >
-                <SendHorizontal className="size-5" aria-hidden />
-              </Button>
-            </form>
-          </div>
-        </div>
-      </section>
+        Ready for Notion
+      </h2>
+      <p className="mt-0.5 text-sm text-white/70">
+        Send this to Notion to scaffold your event workspace.
+      </p>
 
-      {confirmed ? (
-        <section
-          aria-labelledby="notion-ready-heading"
-          className="border-border bg-card text-card-foreground rounded-xl border p-6 shadow-[0_1px_2px_rgba(15,15,15,0.04)]"
-        >
-          <h2
-            id="notion-ready-heading"
-            className="text-lg font-semibold tracking-tight"
-          >
-            Ready for Notion
-          </h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Summary from the agent — send this to create databases under your
-            connected page.
-          </p>
-          <dl className="border-border mt-5 grid gap-3 border-t pt-5 text-sm md:grid-cols-2">
-            <div className="space-y-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Budget
-              </dt>
-              <dd className="font-medium">{confirmed.budget}</dd>
-            </div>
-            <div className="space-y-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Genre
-              </dt>
-              <dd className="font-medium">{confirmed.genre}</dd>
-            </div>
-            <div className="space-y-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Dates
-              </dt>
-              <dd className="font-medium">{confirmed.dateRange}</dd>
-            </div>
-            <div className="space-y-1 md:col-span-2">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                Vibe
-              </dt>
-              <dd className="font-medium">{confirmed.vibe}</dd>
-            </div>
-          </dl>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <Button
-              onClick={() => void handleSendToNotion()}
-              disabled={notionState.kind === "loading"}
-              className="rounded-xl px-5"
-            >
-              {notionState.kind === "loading"
-                ? "Creating in Notion…"
-                : "Send to Notion"}
-            </Button>
-            {notionState.kind === "ok" ? (
-              <a
-                className={cn(
-                  buttonVariants({ variant: "outline" }),
-                  "rounded-xl border-border",
-                )}
-                href={notionState.data.hubPageUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open hub in Notion
-              </a>
-            ) : null}
+      <dl className="mt-4 grid gap-2.5 border-t border-white/20 pt-4 text-sm md:grid-cols-2">
+        {(
+          [
+            ["Budget", confirmed.budget],
+            ["Genre", confirmed.genre],
+            ["Dates", confirmed.dateRange],
+            ["Vibe", confirmed.vibe],
+          ] as [string, string][]
+        ).map(([label, value]) => (
+          <div key={label} className="space-y-0.5">
+            <dt className="text-xs font-medium uppercase tracking-wide text-white/50">
+              {label}
+            </dt>
+            <dd className="font-medium">{value}</dd>
           </div>
-          {notionState.kind === "error" ? (
-            <p className="text-destructive mt-4 text-sm">{notionState.message}</p>
-          ) : null}
-        </section>
+        ))}
+      </dl>
+
+      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+        <Button
+          onClick={() => void handleSendToNotion()}
+          disabled={notionState.kind === "loading"}
+          className="rounded-xl px-5"
+        >
+          {notionState.kind === "loading" ? "Creating…" : "Send to Notion"}
+        </Button>
+        {notionState.kind === "ok" ? (
+          <a
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20",
+            )}
+            href={notionState.data.hubPageUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open in Notion ↗
+          </a>
+        ) : null}
+      </div>
+      {notionState.kind === "error" ? (
+        <p className="mt-3 text-sm text-red-200">{notionState.message}</p>
       ) : null}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inner content — must be inside AssistantRuntimeProvider to use useAui hooks
+// ---------------------------------------------------------------------------
+
+function ChatContent({
+  confirmed,
+  children,
+}: {
+  confirmed: FestivalSettings | null;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
+      {/* register the festival settings tool UI (renders nothing, side-effect only) */}
+      <FestivalSettingsToolUI />
+
+      {/* glass thread container */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/25 bg-white/10 shadow-xl backdrop-blur-md">
+        <Thread />
+      </div>
+
+      {/* confirmed settings → ready for notion card */}
+      {confirmed ? <NotionReadyCard confirmed={confirmed} /> : null}
+
+      {children}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Page root
+// ---------------------------------------------------------------------------
+
 export default function ChatPage() {
+  const [confirmed, setConfirmed] = useState<FestivalSettings | null>(null);
+
+  const runtime = useChatRuntime({
+    transport: new AssistantChatTransport({ api: "/api/chat" }),
+  });
+
   return (
-    <div className="bg-background flex min-h-screen flex-col">
-      <header className="border-border bg-background flex items-center justify-between gap-4 border-b px-6 py-3">
-        <span className="text-foreground text-sm font-semibold tracking-tight">
-          Notion Fest
-        </span>
-        <Link
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "text-muted-foreground hover:text-foreground rounded-lg",
-          )}
-          href="/"
-        >
-          Home
-        </Link>
-      </header>
-      <FestivalChatPageContent />
-    </div>
+    <ConfirmedCtx.Provider value={{ confirmed, onConfirmed: setConfirmed }}>
+      <AssistantRuntimeProvider runtime={runtime}>
+        {/* warm terracotta full-page background */}
+        <div className="flex min-h-screen flex-col bg-[#C38F6C]">
+          {/* header — glass strip */}
+          <header className="sticky top-0 z-20 flex items-center border-b border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
+            <Link
+              href="/"
+              className={`${chellaType.className} text-xl leading-none text-white drop-shadow-sm hover:opacity-80 transition-opacity`}
+            >
+              Notionchella
+            </Link>
+          </header>
+
+          <ChatContent confirmed={confirmed} />
+        </div>
+      </AssistantRuntimeProvider>
+    </ConfirmedCtx.Provider>
   );
 }

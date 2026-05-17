@@ -35,10 +35,15 @@ export async function scaffoldFestivalWorkspace(
   notion: Client,
   parentPageId: string,
   settings: FestivalSettings,
+  options?: { hubTitle?: string },
 ): Promise<NotionSetupResponse> {
   const parentId = normalizeNotionPageId(parentPageId);
 
-  const hubTitle = `Festival hub — ${settings.genre}`;
+  const trimmedCustomTitle = options?.hubTitle?.trim();
+  const hubTitle =
+    trimmedCustomTitle && trimmedCustomTitle.length > 0
+      ? trimmedCustomTitle
+      : `Festival hub — ${settings.genre}`;
 
   const hub = await notion.pages.create({
     parent: { type: "page_id", page_id: parentId },

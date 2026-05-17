@@ -1,6 +1,6 @@
-# Notion Fest
+# Notionchella
 
-Next.js app that chats with Claude (Sonnet 4) to confirm festival **budget**, **genre**, **dates**, and **vibe**, then creates a **Festival hub** page plus eight Notion databases under a parent page you choose.
+**Notionchella** is a Next.js app that chats with Claude (Sonnet 4) to confirm festival **budget**, **genre**, **dates**, and **vibe**, then creates a **Festival hub** page plus eight Notion databases under a parent page you choose.
 
 ## Stack
 
@@ -18,7 +18,9 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) → **Start planning** → `/chat`.
+Open [http://localhost:3000](http://localhost:3000) → enter an optional hub title, paste the **parent Notion page URL** → **Continue to planning** → `/chat`.
+
+You can skip the URL on the home screen if `NOTION_PAGE_ID` is set; otherwise the setup API needs a URL from the form or env.
 
 ## Environment variables
 
@@ -26,11 +28,11 @@ Open [http://localhost:3000](http://localhost:3000) → **Start planning** → `
 |----------|---------|
 | `ANTHROPIC_API_KEY` | Anthropic API key for the chat route |
 | `NOTION_API_KEY` | Notion internal integration secret |
-| `NOTION_PAGE_ID` | UUID of the page where the hub will be created (integration must have access) |
+| `NOTION_PAGE_ID` | *(Optional if you paste parent URL on the home page.)* UUID of the page where the hub will be created (integration must have access) |
 
 ## Folder structure
 
-- `app/page.tsx` — landing
+- `app/page.tsx` — home form (parent URL + optional hub title), persisted for setup
 - `app/chat/page.tsx` — client chat + “Send to Notion”
 - `app/api/chat/route.ts` — streaming agent + `confirmFestivalSettings` tool
 - `app/api/notion/setup/route.ts` — creates Notion hub + databases

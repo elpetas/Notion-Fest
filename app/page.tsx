@@ -1,103 +1,62 @@
 /**
- * Landing page — hero and feature overview before the festival planner chat.
+ * Notionchella — full-viewport hero image + workspace setup.
+ *
+ * background-size: cover fills the viewport without distorting the photo (edges crop as needed).
+ * for edge-to-edge imagery on ultrawide screens, use a wide asset (~2400px+) or accept side crop.
  */
 
-import { CalendarDays, MapPin, Megaphone, Music2 } from "lucide-react";
-import Link from "next/link";
+import localFont from "next/font/local";
 
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { WorkspaceSetupForm } from "@/components/workspace-setup-form";
 
-const featureGroups = [
-  {
-    title: "Venues & ops",
-    icon: MapPin,
-    items: ["Venues & capacity", "Merch & logistics checklist", "Ticket tiers"],
-  },
-  {
-    title: "Marketing & creative",
-    icon: Megaphone,
-    items: ["Flyer designs", "Ad copies", "Social schedule", "Audience segments"],
-  },
-  {
-    title: "Talent & experience",
-    icon: Music2,
-    items: ["DJ roster", "Set notes & fees"],
-  },
-] as const;
+const chellaType = localFont({
+  src: "../fonts/ChellaType-Regular.ttf",
+  display: "swap",
+});
 
 export default function Home() {
   return (
-    <main className="bg-background text-foreground flex min-h-screen flex-col">
-      <section className="flex flex-1 flex-col items-center justify-center px-6 py-16 md:py-24">
-        <div className="max-w-2xl text-center">
-          <p className="text-muted-foreground text-xs font-medium tracking-[0.12em] uppercase">
-            Notion Fest
-          </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-            Plan your festival. Scaffold your workspace.
-          </h1>
-          <p className="text-muted-foreground mx-auto mt-5 max-w-lg text-base leading-relaxed text-pretty md:text-lg">
-            Chat through budget, genre, dates, and vibe with a guided agent.
-            When you are ready, push a structured planning hub into Notion —
-            venues, marketing, roster, tickets, and logistics in one place.
-          </p>
-          <Link
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "mt-10 rounded-xl px-6 shadow-sm",
-            )}
-            href="/chat"
-          >
-            Start planning →
-          </Link>
-        </div>
-      </section>
+    <main className="relative flex min-h-[100dvh] w-full flex-col">
+      {/* background photo with vintage film-filter applied */}
+      <div
+        className="hero-photo-bg pointer-events-none absolute inset-0 z-0 bg-cover bg-[center_bottom] bg-no-repeat"
+        style={{
+          backgroundImage: "url(/coachella-valley-hero-banner.jpg)",
+        }}
+        aria-hidden
+      />
+      {/* animated grain overlay — gives the grainy film-photo texture */}
+      <div
+        className="hero-grain pointer-events-none absolute inset-0 z-[1] opacity-[0.18]"
+        aria-hidden
+      />
+      {/* warm amber wash pushing toward golden-hour sunset tones */}
+      <div
+        className="hero-warm-wash pointer-events-none absolute inset-0 z-[2]"
+        aria-hidden
+      />
+      {/* dark vignette so text stays readable over any photo */}
+      <div
+        className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-b from-black/20 via-black/10 to-black/55"
+        aria-hidden
+      />
 
-      <section
-        aria-labelledby="feature-overview-heading"
-        className="border-border border-t bg-[#f2f1ee] px-6 py-14 md:py-16"
-      >
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-10 flex flex-col gap-2 text-center md:text-left">
-            <div className="text-muted-foreground flex items-center justify-center gap-2 md:justify-start">
-              <CalendarDays className="size-4 shrink-0" aria-hidden />
-              <span className="text-xs font-medium tracking-wide uppercase">
-                What lands in Notion
-              </span>
-            </div>
-            <h2
-              id="feature-overview-heading"
-              className="text-foreground text-xl font-semibold tracking-tight md:text-2xl"
-            >
-              Eight databases, grouped how organizers think
-            </h2>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {featureGroups.map(({ title, icon: Icon, items }) => (
-              <div
-                key={title}
-                className="border-border bg-card text-card-foreground flex flex-col rounded-xl border p-5 shadow-[0_1px_2px_rgba(15,15,15,0.04)]"
-              >
-                <div className="bg-primary/10 text-primary mb-4 inline-flex size-10 items-center justify-center rounded-lg">
-                  <Icon className="size-5" aria-hidden />
-                </div>
-                <h3 className="text-base font-semibold tracking-tight">
-                  {title}
-                </h3>
-                <ul className="text-muted-foreground mt-3 space-y-2 text-sm leading-snug">
-                  {items.map((item) => (
-                    <li key={item} className="flex gap-2">
-                      <span className="text-primary mt-1.5 inline-block size-1 shrink-0 rounded-full bg-current opacity-60" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+      <div className="relative z-[10] flex min-h-[100dvh] w-full flex-1 flex-col items-center justify-center px-4 pb-4 pt-16 md:px-6 md:pb-8 md:pt-20">
+        <div className="-mt-8 mx-auto w-full max-w-lg shrink-0 text-center">
+          <h1
+            className={`${chellaType.className} text-5xl leading-none tracking-tight text-balance text-white drop-shadow-md md:text-6xl lg:text-7xl`}
+          >
+            Notionchella
+          </h1>
+          <p className="mx-auto mt-4 max-w-md text-lg leading-snug font-normal text-pretty text-white/95 drop-shadow-md md:text-xl">
+            Plan your next event with just a few words
+          </p>
         </div>
-      </section>
+
+        <div className="mx-auto mt-10 flex w-full max-w-lg justify-center md:mt-12">
+          <WorkspaceSetupForm />
+        </div>
+      </div>
     </main>
   );
 }

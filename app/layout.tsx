@@ -1,9 +1,11 @@
 /**
- * Root layout — loads global styles and Inter for Notion-inspired typography.
+ * Root layout — loads global styles, Inter font, and wraps app with TooltipProvider
+ * (required by assistant-ui tooltip components).
  */
 
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 import "./globals.css";
 
@@ -13,9 +15,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Notion Fest",
+  title: "Notionchella",
   description:
-    "Chat through festival details, then scaffold a Notion planning workspace.",
+    "Notionchella — plan events in chat, then scaffold your Notion workspace.",
 };
 
 export default function RootLayout({
@@ -25,7 +27,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <TooltipProvider>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }

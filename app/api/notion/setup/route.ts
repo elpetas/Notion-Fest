@@ -7,22 +7,20 @@ import { z } from "zod";
 
 import { getNotionClient } from "@/lib/notion/client";
 import { normalizeNotionPageId, scaffoldFestivalWorkspace } from "@/lib/notion/scaffold";
+import type { FestivalSettings } from "@/types/festival";
 
 const bodySchema = z.object({
   budget: z.string().min(1),
   genre: z.string().min(1),
   dateRange: z.string().min(1),
   vibe: z.string().min(1),
+  /** optional parent page URL or id — overrides NOTION_PAGE_ID when set */
+  parentPageUrl: z.string().optional(),
+  /** optional hub page title — defaults to "Festival hub — {genre}" */
+  hubTitle: z.string().optional(),
 });
 
 export async function POST(req: Request): Promise<Response> {
-  const parentRaw = process.env.NOTION_PAGE_ID?.trim();
-  if (!parentRaw) {
-    return NextResponse.json(
-      { error: "NOTION_PAGE_ID is not configured" },
-      { status: 500 },
-    );
-  }
 
   let json: unknown;
   try {
@@ -39,12 +37,34 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
+  const parentRaw =
+    parsed.data.parentPageUrl?.trim() ||
+    process.env.NOTION_PAGE_ID?.trim() ||
+    "";
+  if (!parentRaw) {
+    return NextResponse.json(
+      {
+        error:
+          "Parent Notion page missing — paste its URL on the home page or set NOTION_PAGE_ID.",
+      },
+      { status: 400 },
+    );
+  }
+
   try {
     const notion = getNotionClient();
+    const settings: FestivalSettings = {
+      budget: parsed.data.budget,
+      genre: parsed.data.genre,
+      dateRange: parsed.data.dateRange,
+      vibe: parsed.data.vibe,
+    };
+    const hubTitleOpt = parsed.data.hubTitle?.trim();
     const result = await scaffoldFestivalWorkspace(
       notion,
       normalizeNotionPageId(parentRaw),
-      parsed.data,
+      settings,
+      hubTitleOpt ? { hubTitle: hubTitleOpt } : undefined,
     );
     return NextResponse.json(result);
   } catch (err) {
