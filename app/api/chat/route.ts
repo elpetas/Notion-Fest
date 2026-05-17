@@ -1,5 +1,7 @@
 /**
  * Streaming chat endpoint for the festival planning agent (Claude + tool calling).
+ * Accepts optional hubTitle in the request body to pre-load event context into
+ * the system prompt so the agent doesn't re-ask what the user already told us.
  */
 
 import { anthropic } from "@ai-sdk/anthropic";
@@ -11,7 +13,7 @@ import {
 } from "ai";
 import { NextResponse } from "next/server";
 
-import { FESTIVAL_SYSTEM_PROMPT, festivalTools } from "@/lib/ai/festival-agent";
+import { buildSystemPrompt, festivalTools } from "@/lib/ai/festival-agent";
 
 export async function POST(req: Request): Promise<Response> {
   if (!process.env.ANTHROPIC_API_KEY?.trim()) {
@@ -21,14 +23,14 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  let body: { messages?: UIMessage[] };
+  let body: { messages?: UIMessage[]; hubTitle?: string; parentPageUrl?: string };
   try {
-    body = (await req.json()) as { messages?: UIMessage[] };
+    body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid json body" }, { status: 400 });
   }
 
-  const { messages } = body;
+  const { messages, hubTitle } = body;
   if (!messages?.length) {
     return NextResponse.json(
       { error: "messages array is required" },
@@ -38,7 +40,8 @@ export async function POST(req: Request): Promise<Response> {
 
   const result = streamText({
     model: anthropic("claude-sonnet-4-20250514"),
-    system: FESTIVAL_SYSTEM_PROMPT,
+    // inject event name so the agent skips asking for it
+    system: buildSystemPrompt(hubTitle),
     messages: await convertToModelMessages(messages),
     tools: festivalTools,
     stopWhen: stepCountIs(12),

@@ -7,17 +7,35 @@ import { z } from "zod";
 
 import type { FestivalSettings } from "@/types/festival";
 
-export const FESTIVAL_SYSTEM_PROMPT = `You are a friendly, practical music festival planning guide.
+const BASE_SYSTEM_PROMPT = `You are a friendly, practical event planning guide for Notionchella.
 
 Goals:
 - Help the organizer clarify their vision in natural conversation.
 - You MUST eventually collect clear answers for: budget, genre, and event dates (plus overall vibe / positioning).
 - Ask one or two focused questions at a time so it does not feel like an interrogation.
-- If the user already gave one of the required fields, acknowledge it and move on—do not re-ask unless uncertain.
+- If the user already gave one of the required fields, acknowledge it and move on — do not re-ask unless uncertain.
 - When budget, genre, dateRange, and vibe are all agreed on, call the confirmFestivalSettings tool exactly once with those final values.
-- After calling the tool, briefly congratulate them and remind them they can click "Send to Notion" in Notionchella to scaffold their planning workspace.
+- After calling the tool, briefly congratulate them and remind them they can click "Send to Notion" to scaffold their planning workspace.
 
 Tone: warm, concise, confident, no corporate jargon.`;
+
+/**
+ * Builds the system prompt, injecting known event context so the agent
+ * doesn't ask for information the user already provided on the home screen.
+ */
+export function buildSystemPrompt(hubTitle?: string): string {
+  if (!hubTitle?.trim()) return BASE_SYSTEM_PROMPT;
+
+  return `${BASE_SYSTEM_PROMPT}
+
+Known context (do NOT ask the user for this — you already have it):
+- Event name: "${hubTitle.trim()}"
+
+Start the conversation by acknowledging the event name naturally, then ask only about what you still need: budget, genre, dates, and vibe.`;
+}
+
+// keep a plain export for any callers that don't pass context
+export const FESTIVAL_SYSTEM_PROMPT = BASE_SYSTEM_PROMPT;
 
 const festivalSettingsSchema = z.object({
   budget: z.string().describe("Final confirmed total or range, e.g. $50k or $20–35k"),
