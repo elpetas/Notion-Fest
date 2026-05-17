@@ -138,6 +138,13 @@ export async function POST(request: Request) {
         env: {
           NOTION_API_TOKEN: notionToken,
           NOTION_WORKSPACE_ID: notionWorkspaceId,
+          EVENTBRITE_API_KEY: process.env.EVENTBRITE_API_KEY ?? "",
+          SPOTIFY_CLIENT_ID: process.env.SPOTIFY_CLIENT_ID ?? "",
+          SPOTIFY_CLIENT_SECRET: process.env.SPOTIFY_CLIENT_SECRET ?? "",
+          INSTAGRAM_APP_ID: process.env.INSTAGRAM_APP_ID ?? "",
+          INSTAGRAM_APP_SECRET: process.env.INSTAGRAM_APP_SECRET ?? "",
+          INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN ?? "",
+          INSTAGRAM_USER_ID: process.env.INSTAGRAM_USER_ID ?? "",
         },
       }),
     );

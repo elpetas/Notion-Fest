@@ -17,4 +17,5 @@ export interface NotionSetupResponse {
   hubPageUrl: string;
   hubPageId: string;
   databaseUrls: Record<string, string>;
+  databaseIds: Record<string, string>;
 }
