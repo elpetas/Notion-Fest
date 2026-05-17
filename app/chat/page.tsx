@@ -23,13 +23,15 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { flushPendingOnboarding } from "@/lib/onboarding/flush-pending";
 import {
+  clearPendingOnboarding,
   hasPendingOnboarding,
   readPendingOnboarding,
 } from "@/lib/onboarding-pending-storage";
+import type { PendingOnboardingData } from "@/types/onboarding-pending";
 import { readWorkspacePrefs } from "@/lib/workspace-storage";
 import { chellaType } from "@/lib/fonts/chella-type";
+import type { FlushPendingResult } from "@/lib/onboarding/flush-pending-server";
 import type {
   ChatOnboardingState,
   EventbriteEventInfo,
@@ -136,9 +138,10 @@ function HubExportBar({
   workspace,
   onHubCreated,
 }: HubExportBarProps) {
+  const aui = useAui();
   const [notionState, setNotionState] = useState<
     | { kind: "idle" }
-    | { kind: "loading" }
+    | { kind: "loading"; phase: "hub" | "worker" }
     | { kind: "ok"; data: NotionSetupResponse; syncNote?: string }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
@@ -164,9 +167,16 @@ function HubExportBar({
 
   async function handleDeployWorker() {
     if (!confirmed) return;
-    setNotionState({ kind: "loading" });
+    setNotionState({ kind: "loading", phase: "hub" });
     try {
       const prefs = readWorkspacePrefs();
+      const pending = readPendingOnboarding();
+      const ebUrl =
+        onboarding.eventbriteUrl ??
+        pending?.eventbriteUrl ??
+        onboarding.eventbrite?.url ??
+        onboarding.eventbrite?.id;
+
       const body = {
         ...confirmed,
         budget: confirmed.budget.trim(),
@@ -177,62 +187,64 @@ function HubExportBar({
           ? { parentPageUrl: prefs.parentPageUrl.trim() }
           : {}),
         ...(prefs.hubTitle.trim() ? { hubTitle: prefs.hubTitle.trim() } : {}),
+        pending: pending as PendingOnboardingData | null,
+        ...(ebUrl ? { eventbriteUrl: ebUrl } : {}),
       };
-      const res = await fetch("/api/notion/setup", {
+
+      setNotionState({ kind: "loading", phase: "worker" });
+
+      const res = await fetch("/api/chat/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data: unknown = await res.json();
-      if (!res.ok) {
-        const msg =
-          typeof (data as { error?: string }).error === "string"
-            ? (data as { error: string }).error
-            : "Notion request failed";
-        setNotionState({ kind: "error", message: msg });
+      const data = (await res.json()) as {
+        workspace?: NotionSetupResponse;
+        summaryMessage?: string;
+        flush?: FlushPendingResult;
+        workerDeployed?: boolean;
+        workerDeployError?: string;
+        error?: string;
+      };
+
+      if (!res.ok || !data.workspace) {
+        setNotionState({
+          kind: "error",
+          message: data.error ?? "Deploy failed",
+        });
         return;
       }
-      const ws = data as NotionSetupResponse;
+
+      const ws = data.workspace;
       try {
         localStorage.setItem("notionFestWorkspace", JSON.stringify(ws));
       } catch {
         // localStorage unavailable
       }
+      clearPendingOnboarding();
       onHubCreated(ws);
 
-      const pending = readPendingOnboarding();
-      const ebUrl =
-        onboarding.eventbriteUrl ??
-        pending?.eventbriteUrl ??
-        onboarding.eventbrite?.url ??
-        onboarding.eventbrite?.id;
-
-      let syncNote: string | undefined;
-      const shouldFlush =
-        Boolean(ebUrl || onboarding.eventbrite) || hasPendingOnboarding();
-
-      if (shouldFlush) {
-        const flushed = await flushPendingOnboarding(ws, {
-          eventbriteUrl: ebUrl,
-          eventbrite: onboarding.eventbrite ?? pending?.eventbrite,
+      if (data.summaryMessage) {
+        await aui.thread().append({
+          role: "assistant",
+          content: [{ type: "text", text: data.summaryMessage }],
         });
-        const parts: string[] = [];
-        if (flushed.eventbrite) {
-          const ebParts = ["Eventbrite"];
-          if (flushed.eventbriteTiers) ebParts.push(`${flushed.eventbriteTiers} ticket tier(s)`);
-          if (flushed.eventbriteGuests != null) {
-            ebParts.push(`${flushed.eventbriteGuests} guest(s)`);
-          }
-          parts.push(ebParts.join(": "));
-        }
-        if (flushed.instagram) parts.push(`${flushed.instagram} Instagram post(s)`);
-        if (flushed.artists) parts.push(`${flushed.artists} artist(s)`);
-        if (parts.length > 0) {
-          syncNote = `Synced to your hub: ${parts.join(", ")}.`;
-        }
-        if (flushed.errors.length > 0) {
-          syncNote = [syncNote, flushed.errors.join(" ")].filter(Boolean).join(" ");
-        }
+      }
+
+      const parts: string[] = [];
+      const flushed = data.flush;
+      if (flushed?.eventbrite) parts.push("Eventbrite synced");
+      if (flushed?.instagram) parts.push(`${flushed.instagram} Instagram post(s)`);
+      if (flushed?.artists) parts.push(`${flushed.artists} artist(s)`);
+      let syncNote =
+        parts.length > 0 ? `Synced to your hub: ${parts.join(", ")}.` : undefined;
+      if (data.workerDeployed) {
+        syncNote = [syncNote, "Notion Worker deployed via ntn."].filter(Boolean).join(" ");
+      } else if (data.workerDeployError) {
+        syncNote = [syncNote, data.workerDeployError].filter(Boolean).join(" ");
+      }
+      if (flushed?.errors?.length) {
+        syncNote = [syncNote, flushed.errors.join(" ")].filter(Boolean).join(" ");
       }
 
       setNotionState({ kind: "ok", data: ws, syncNote });
@@ -253,7 +265,8 @@ function HubExportBar({
         Deploy your worker
       </h2>
       <p className="mt-0.5 text-sm text-white/70">
-        Creates your festival hub in Notion and syncs Eventbrite, Instagram, and artists from setup.
+        Creates your festival hub, syncs onboarding data, deploys the Notion Worker with{" "}
+        <code className="text-xs">ntn workers deploy</code> in Vercel Sandbox, and posts a summary in chat.
       </p>
       <ul className="mt-3 space-y-0.5 border-t border-white/20 pt-3 text-xs text-white/75">
         <li>Budget: {confirmed.budget}</li>
@@ -267,7 +280,11 @@ function HubExportBar({
           disabled={notionState.kind === "loading"}
           className="rounded-xl px-5"
         >
-          {notionState.kind === "loading" ? "Deploying…" : "Deploy Worker"}
+          {notionState.kind === "loading"
+            ? notionState.phase === "worker"
+              ? "Deploying worker (ntn)…"
+              : "Creating hub…"
+            : "Deploy Worker"}
         </Button>
         {notionState.kind === "ok" ? (
           <a
