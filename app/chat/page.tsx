@@ -20,18 +20,12 @@ import {
   useChatRuntime,
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
-import localFont from "next/font/local";
 import { Thread } from "@/components/assistant-ui/thread";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { readWorkspacePrefs } from "@/lib/workspace-storage";
 import type { FestivalSettings, NotionSetupResponse } from "@/types/festival";
-
-const chellaType = localFont({
-  src: "../fonts/ChellaType-Regular.ttf",
-  display: "swap",
-});
 
 // ---------------------------------------------------------------------------
 // Context — lets the ConfirmFestivalSettings tool UI pass settings up
@@ -251,7 +245,7 @@ export default function ChatPage() {
           <header className="sticky top-0 z-20 flex items-center border-b border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
             <Link
               href="/"
-              className={`${chellaType.className} text-xl leading-none text-white drop-shadow-sm hover:opacity-80 transition-opacity`}
+              className="font-chella text-xl leading-none text-white drop-shadow-sm hover:opacity-80 transition-opacity"
             >
               Notionchella
             </Link>

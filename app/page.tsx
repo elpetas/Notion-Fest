@@ -5,14 +5,7 @@
  * for edge-to-edge imagery on ultrawide screens, use a wide asset (~2400px+) or accept side crop.
  */
 
-import localFont from "next/font/local";
-
 import { WorkspaceSetupForm } from "@/components/workspace-setup-form";
-
-const chellaType = localFont({
-  src: "../fonts/ChellaType-Regular.ttf",
-  display: "swap",
-});
 
 export default function Home() {
   return (
@@ -43,9 +36,7 @@ export default function Home() {
 
       <div className="relative z-[10] flex min-h-[100dvh] w-full flex-1 flex-col items-center justify-center px-4 pb-4 pt-16 md:px-6 md:pb-8 md:pt-20">
         <div className="-mt-8 mx-auto w-full max-w-lg shrink-0 text-center">
-          <h1
-            className={`${chellaType.className} text-5xl leading-none tracking-tight text-balance text-white drop-shadow-md md:text-6xl lg:text-7xl`}
-          >
+          <h1 className="font-chella text-5xl leading-none tracking-tight text-balance text-white drop-shadow-md md:text-6xl lg:text-7xl">
             Notionchella
           </h1>
           <p className="mx-auto mt-4 max-w-md text-lg leading-snug font-normal text-pretty text-white/95 drop-shadow-md md:text-xl">

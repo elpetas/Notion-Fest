@@ -5,6 +5,7 @@
 
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import "./globals.css";
@@ -12,6 +13,14 @@ import "./globals.css";
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+});
+
+// ChellaType is defined here (server layout) so it can be safely used
+// anywhere via the --font-chella CSS variable — no client-component issue.
+const chellaType = localFont({
+  src: "../fonts/ChellaType-Regular.ttf",
+  variable: "--font-chella",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+      <html lang="en" className={`${inter.variable} ${chellaType.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <TooltipProvider>{children}</TooltipProvider>
       </body>

@@ -204,3 +204,7 @@
   opacity: 1;
   /* Firefox resets opacity on ::placeholder */
 }
+/* ChellaType display font — applied via CSS variable set in layout */
+.font-chella {
+  font-family: var(--font-chella), serif;
+}
