@@ -175,14 +175,23 @@ export function mergeWithDiscovered(
 /**
  * Hackathon-demo mode: discovers EVERYTHING automatically.
  * Finds first page in workspace, then discovers databases from it.
+ * Falls back to NOTION_PAGE_ID environment variable if search returns no results.
  */
 export async function autoDiscoverEverything(): Promise<{
   hubPageId: string;
   databases: DiscoveredDatabases;
 }> {
-  const hubPageId = await findFirstPageInWorkspace();
+  let hubPageId = await findFirstPageInWorkspace();
+  
+  // Fallback to NOTION_PAGE_ID if no pages found via search
   if (!hubPageId) {
-    throw new Error("No pages found in workspace");
+    const fallbackPageId = process.env.NOTION_PAGE_ID?.trim();
+    if (fallbackPageId) {
+      hubPageId = fallbackPageId;
+      console.log(`Auto-discovery: using NOTION_PAGE_ID from environment: ${hubPageId}`);
+    } else {
+      throw new Error("No pages found in workspace. Either share pages with your Notion integration or set NOTION_PAGE_ID in .env");
+    }
   }
 
   const databases = await discoverDatabasesFromHub(hubPageId);
