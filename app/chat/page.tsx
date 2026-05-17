@@ -1,7 +1,6 @@
 /**
  * Chat page — assistant-ui Thread backed by the /api/chat streaming route.
- * Background is #C38F6C (warm terracotta) with glassmorphism containers.
- * Confirmed festival settings bubble up via context → "Ready for Notion" card.
+ * Onboarding: Eventbrite → Instagram → Artist roster → Notion.
  */
 
 "use client";
@@ -9,33 +8,36 @@
 import {
   createContext,
   useContext,
+  useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import {
-  AssistantRuntimeProvider,
-  useAssistantToolUI,
-} from "@assistant-ui/react";
+import { AssistantRuntimeProvider, useAui, useAssistantToolUI } from "@assistant-ui/react";
 import {
   useChatRuntime,
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
-import localFont from "next/font/local";
+import { OnboardingToolUIs } from "@/components/chat/onboarding-tool-uis";
 import { Thread } from "@/components/assistant-ui/thread";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { flushPendingOnboarding } from "@/lib/onboarding/flush-pending";
+import {
+  hasPendingOnboarding,
+  readPendingOnboarding,
+} from "@/lib/onboarding-pending-storage";
 import { readWorkspacePrefs } from "@/lib/workspace-storage";
-import type { FestivalSettings, NotionSetupResponse } from "@/types/festival";
+import { chellaType } from "@/lib/fonts/chella-type";
+import type {
+  ChatOnboardingState,
+  EventbriteEventInfo,
+  FestivalSettings,
+  NotionSetupResponse,
+} from "@/types/festival";
 
-const chellaType = localFont({
-  src: "../fonts/ChellaType-Regular.ttf",
-  display: "swap",
-});
-
-// ---------------------------------------------------------------------------
-// Context — lets the ConfirmFestivalSettings tool UI pass settings up
-// ---------------------------------------------------------------------------
+const KICKOFF_KEY = "notionFestChatKickoff";
 
 interface ConfirmedCtxValue {
   confirmed: FestivalSettings | null;
@@ -47,71 +49,130 @@ const ConfirmedCtx = createContext<ConfirmedCtxValue>({
   onConfirmed: () => {},
 });
 
-// ---------------------------------------------------------------------------
-// Tool UI — renders inline when the agent calls confirmFestivalSettings
-// ---------------------------------------------------------------------------
+function ConfirmSettingsToolPart({
+  toolPart,
+}: {
+  toolPart: { result?: unknown; status: { type: string } };
+}) {
+  const { onConfirmed } = useContext(ConfirmedCtx);
+  const result = toolPart.result as FestivalSettings | undefined;
+  const isDone = toolPart.status.type === "complete";
+  const lastReported = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isDone || !result) return;
+    const key = JSON.stringify(result);
+    if (lastReported.current === key) return;
+    lastReported.current = key;
+    onConfirmed(result);
+  }, [isDone, result, onConfirmed]);
+
+  return (
+    <div className="mt-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm text-white/90 backdrop-blur-sm">
+      {isDone ? (
+        <>
+          <p className="font-medium">Festival settings locked in ✓</p>
+          {result ? (
+            <ul className="mt-1.5 space-y-0.5 text-white/75 text-xs">
+              <li>Genre: {result.genre}</li>
+              <li>Budget: {result.budget}</li>
+              <li>Dates: {result.dateRange}</li>
+              <li>Vibe: {result.vibe}</li>
+            </ul>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-white/70">Confirming festival settings…</p>
+      )}
+    </div>
+  );
+}
 
 function FestivalSettingsToolUI() {
-  const { onConfirmed } = useContext(ConfirmedCtx);
-
   useAssistantToolUI({
     toolName: "confirmFestivalSettings",
     render(toolPart) {
-      const result = toolPart.result as FestivalSettings | undefined;
-      const isDone = toolPart.status.type === "complete";
-
-      // bubble confirmed settings up to the page state
-      if (isDone && result) {
-        onConfirmed(result);
-      }
-
-      return (
-        <div className="mt-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-sm text-white/90 backdrop-blur-sm">
-          {isDone ? (
-            <>
-              <p className="font-medium">Festival settings locked in ✓</p>
-              {result ? (
-                <ul className="mt-1.5 space-y-0.5 text-white/75 text-xs">
-                  <li>Genre: {result.genre}</li>
-                  <li>Budget: {result.budget}</li>
-                  <li>Dates: {result.dateRange}</li>
-                  <li>Vibe: {result.vibe}</li>
-                </ul>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-white/70">Confirming festival settings…</p>
-          )}
-        </div>
-      );
+      return <ConfirmSettingsToolPart toolPart={toolPart} />;
     },
   });
 
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// "Ready for Notion" card — shown once settings are confirmed
-// ---------------------------------------------------------------------------
+function ChatKickoff() {
+  const aui = useAui();
 
-interface NotionCardProps {
-  confirmed: FestivalSettings;
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(KICKOFF_KEY)) return;
+      sessionStorage.setItem(KICKOFF_KEY, "1");
+    } catch {
+      return;
+    }
+    void aui.thread().append({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "Help me set up my festival hub — start with Eventbrite.",
+        },
+      ],
+    });
+  }, [aui]);
+
+  return null;
 }
 
-function NotionReadyCard({ confirmed }: NotionCardProps) {
+interface HubExportBarProps {
+  confirmed: FestivalSettings;
+  onboarding: ChatOnboardingState;
+  workspace: NotionSetupResponse | null;
+  onHubCreated: (workspace: NotionSetupResponse) => void;
+}
+
+function HubExportBar({
+  confirmed,
+  onboarding,
+  workspace,
+  onHubCreated,
+}: HubExportBarProps) {
   const [notionState, setNotionState] = useState<
     | { kind: "idle" }
     | { kind: "loading" }
-    | { kind: "ok"; data: NotionSetupResponse }
+    | { kind: "ok"; data: NotionSetupResponse; syncNote?: string }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
 
-  async function handleSendToNotion() {
+  if (workspace?.hubPageUrl) {
+    return (
+      <section className="rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md">
+        <h2 className="text-base font-semibold tracking-tight">Your festival hub</h2>
+        <p className="mt-0.5 text-sm text-white/70">
+          Onboarding data is synced into your connected Notion workspace.
+        </p>
+        <a
+          className={cn(buttonVariants({ variant: "outline" }), "mt-4 inline-flex rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20")}
+          href={workspace.hubPageUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open hub in Notion ↗
+        </a>
+      </section>
+    );
+  }
+
+  async function handleDeployWorker() {
+    if (!confirmed) return;
     setNotionState({ kind: "loading" });
     try {
       const prefs = readWorkspacePrefs();
       const body = {
         ...confirmed,
+        budget: confirmed.budget.trim(),
+        genre: confirmed.genre.trim(),
+        dateRange: confirmed.dateRange.trim() || "TBD",
+        vibe: confirmed.vibe.trim() || confirmed.genre.trim(),
         ...(prefs.parentPageUrl.trim()
           ? { parentPageUrl: prefs.parentPageUrl.trim() }
           : {}),
@@ -131,7 +192,50 @@ function NotionReadyCard({ confirmed }: NotionCardProps) {
         setNotionState({ kind: "error", message: msg });
         return;
       }
-      setNotionState({ kind: "ok", data: data as NotionSetupResponse });
+      const ws = data as NotionSetupResponse;
+      try {
+        localStorage.setItem("notionFestWorkspace", JSON.stringify(ws));
+      } catch {
+        // localStorage unavailable
+      }
+      onHubCreated(ws);
+
+      const pending = readPendingOnboarding();
+      const ebUrl =
+        onboarding.eventbriteUrl ??
+        pending?.eventbriteUrl ??
+        onboarding.eventbrite?.url ??
+        onboarding.eventbrite?.id;
+
+      let syncNote: string | undefined;
+      const shouldFlush =
+        Boolean(ebUrl || onboarding.eventbrite) || hasPendingOnboarding();
+
+      if (shouldFlush) {
+        const flushed = await flushPendingOnboarding(ws, {
+          eventbriteUrl: ebUrl,
+          eventbrite: onboarding.eventbrite ?? pending?.eventbrite,
+        });
+        const parts: string[] = [];
+        if (flushed.eventbrite) {
+          const ebParts = ["Eventbrite"];
+          if (flushed.eventbriteTiers) ebParts.push(`${flushed.eventbriteTiers} ticket tier(s)`);
+          if (flushed.eventbriteGuests != null) {
+            ebParts.push(`${flushed.eventbriteGuests} guest(s)`);
+          }
+          parts.push(ebParts.join(": "));
+        }
+        if (flushed.instagram) parts.push(`${flushed.instagram} Instagram post(s)`);
+        if (flushed.artists) parts.push(`${flushed.artists} artist(s)`);
+        if (parts.length > 0) {
+          syncNote = `Synced to your hub: ${parts.join(", ")}.`;
+        }
+        if (flushed.errors.length > 0) {
+          syncNote = [syncNote, flushed.errors.join(" ")].filter(Boolean).join(" ");
+        }
+      }
+
+      setNotionState({ kind: "ok", data: ws, syncNote });
     } catch (err) {
       setNotionState({
         kind: "error",
@@ -145,41 +249,25 @@ function NotionReadyCard({ confirmed }: NotionCardProps) {
       aria-labelledby="notion-ready-heading"
       className="rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md"
     >
-      <h2
-        id="notion-ready-heading"
-        className="text-base font-semibold tracking-tight"
-      >
-        Ready for Notion
+      <h2 id="notion-ready-heading" className="text-base font-semibold tracking-tight">
+        Deploy your worker
       </h2>
       <p className="mt-0.5 text-sm text-white/70">
-        Send this to Notion to scaffold your event workspace.
+        Creates your festival hub in Notion and syncs Eventbrite, Instagram, and artists from setup.
       </p>
-
-      <dl className="mt-4 grid gap-2.5 border-t border-white/20 pt-4 text-sm md:grid-cols-2">
-        {(
-          [
-            ["Budget", confirmed.budget],
-            ["Genre", confirmed.genre],
-            ["Dates", confirmed.dateRange],
-            ["Vibe", confirmed.vibe],
-          ] as [string, string][]
-        ).map(([label, value]) => (
-          <div key={label} className="space-y-0.5">
-            <dt className="text-xs font-medium uppercase tracking-wide text-white/50">
-              {label}
-            </dt>
-            <dd className="font-medium">{value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+      <ul className="mt-3 space-y-0.5 border-t border-white/20 pt-3 text-xs text-white/75">
+        <li>Budget: {confirmed.budget}</li>
+        <li>Genre: {confirmed.genre}</li>
+        <li>Dates: {confirmed.dateRange}</li>
+        <li>Vibe: {confirmed.vibe}</li>
+      </ul>
+      <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
         <Button
-          onClick={() => void handleSendToNotion()}
+          onClick={() => void handleDeployWorker()}
           disabled={notionState.kind === "loading"}
           className="rounded-xl px-5"
         >
-          {notionState.kind === "loading" ? "Creating…" : "Send to Notion"}
+          {notionState.kind === "loading" ? "Deploying…" : "Deploy Worker"}
         </Button>
         {notionState.kind === "ok" ? (
           <a
@@ -195,6 +283,9 @@ function NotionReadyCard({ confirmed }: NotionCardProps) {
           </a>
         ) : null}
       </div>
+      {notionState.kind === "ok" && notionState.syncNote ? (
+        <p className="mt-3 text-sm text-emerald-200/90">{notionState.syncNote}</p>
+      ) : null}
       {notionState.kind === "error" ? (
         <p className="mt-3 text-sm text-red-200">{notionState.message}</p>
       ) : null}
@@ -202,62 +293,175 @@ function NotionReadyCard({ confirmed }: NotionCardProps) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Inner content — must be inside AssistantRuntimeProvider to use useAui hooks
-// ---------------------------------------------------------------------------
-
 function ChatContent({
   confirmed,
-  children,
+  workspace,
+  onboarding,
+  onEventbriteImported,
+  onInstagramExported,
+  onArtistsExported,
+  onConfirmed,
+  onHubCreated,
 }: {
   confirmed: FestivalSettings | null;
-  children?: ReactNode;
+  workspace: NotionSetupResponse | null;
+  onboarding: ChatOnboardingState;
+  onEventbriteImported: (event: EventbriteEventInfo, eventUrl?: string) => void;
+  onInstagramExported: () => void;
+  onArtistsExported: () => void;
+  onConfirmed: (settings: FestivalSettings) => void;
+  onHubCreated: (workspace: NotionSetupResponse) => void;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
-      {/* register the festival settings tool UI (renders nothing, side-effect only) */}
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 overflow-hidden px-4 py-4 md:px-6 md:py-5">
+      <ChatKickoff />
       <FestivalSettingsToolUI />
+      <OnboardingToolUIs
+        workspace={workspace}
+        eventbriteEvent={onboarding.eventbrite}
+        onEventbriteImported={onEventbriteImported}
+        onInstagramExported={onInstagramExported}
+        onArtistsExported={onArtistsExported}
+        onSettingsConfirmed={onConfirmed}
+      />
 
-      {/* glass thread container */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/25 bg-white/10 shadow-xl backdrop-blur-md">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/25 bg-white/10 shadow-xl backdrop-blur-md [&_.aui-thread-root]:min-h-0">
         <Thread />
       </div>
 
-      {/* confirmed settings → ready for notion card */}
-      {confirmed ? <NotionReadyCard confirmed={confirmed} /> : null}
+      {onboarding.eventbrite && !confirmed ? (
+        <p className="text-center text-xs text-white/60">
+          Event linked: {onboarding.eventbrite.name}
+          {onboarding.instagramExported
+            ? workspace
+              ? " · Instagram synced"
+              : " · Instagram saved"
+            : ""}
+          {onboarding.artistsExported
+            ? workspace
+              ? " · Artists synced"
+              : " · Artists saved"
+            : ""}
+          {!workspace && hasPendingOnboarding() ? " · Syncs when hub is created" : ""}
+        </p>
+      ) : null}
 
-      {children}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page root
-// ---------------------------------------------------------------------------
-
 export default function ChatPage() {
   const [confirmed, setConfirmed] = useState<FestivalSettings | null>(null);
+  const [workspace, setWorkspace] = useState<NotionSetupResponse | null>(null);
+  const [onboarding, setOnboarding] = useState<ChatOnboardingState>({});
+  const onboardingRef = useRef(onboarding);
+  onboardingRef.current = onboarding;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("notionFestWorkspace");
+      if (saved) {
+        setWorkspace(JSON.parse(saved) as NotionSetupResponse);
+      }
+      const pending = readPendingOnboarding();
+      if (pending?.eventbrite) {
+        setOnboarding((prev) => ({
+          ...prev,
+          eventbrite: pending.eventbrite,
+          eventbriteUrl:
+            pending.eventbriteUrl ?? pending.eventbrite?.url ?? pending.eventbrite?.id,
+        }));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function handleHubCreated(ws: NotionSetupResponse) {
+    setWorkspace(ws);
+  }
+
+  const transportRef = useRef(
+    new AssistantChatTransport({
+      api: "/api/chat",
+      prepareSendMessagesRequest: ({ messages, body }) => {
+        let ws: NotionSetupResponse | undefined;
+        try {
+          const saved = localStorage.getItem("notionFestWorkspace");
+          if (saved) ws = JSON.parse(saved) as NotionSetupResponse;
+        } catch {
+          // ignore
+        }
+        return {
+          body: {
+            ...body,
+            messages,
+            ...(ws?.hubPageId ? { workspace: ws } : {}),
+            onboarding: onboardingRef.current,
+          },
+        };
+      },
+    }),
+  );
 
   const runtime = useChatRuntime({
-    transport: new AssistantChatTransport({ api: "/api/chat" }),
+    transport: transportRef.current,
   });
+
+  const showDeployBar = Boolean(confirmed) && !workspace?.hubPageUrl;
 
   return (
     <ConfirmedCtx.Provider value={{ confirmed, onConfirmed: setConfirmed }}>
       <AssistantRuntimeProvider runtime={runtime}>
-        {/* warm terracotta full-page background */}
-        <div className="flex min-h-screen flex-col bg-[#C38F6C]">
-          {/* header — glass strip */}
-          <header className="sticky top-0 z-20 flex items-center border-b border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
+        <div className="flex h-dvh flex-col overflow-hidden bg-[#C38F6C]">
+          <header className="z-20 flex shrink-0 items-center justify-between border-b border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
             <Link
               href="/"
-              className={`${chellaType.className} text-xl leading-none text-white drop-shadow-sm hover:opacity-80 transition-opacity`}
+              className={`${chellaType.className} text-xl leading-none text-white drop-shadow-sm transition-opacity hover:opacity-80`}
             >
               Notionchella
             </Link>
+            <Link
+              href="/sync"
+              className="text-sm text-white/80 underline-offset-2 hover:text-white hover:underline"
+            >
+              Integrations
+            </Link>
           </header>
 
-          <ChatContent confirmed={confirmed} />
+          <ChatContent
+            confirmed={confirmed}
+            workspace={workspace}
+            onboarding={onboarding}
+            onEventbriteImported={(event, eventUrl) =>
+              setOnboarding((prev) => ({
+                ...prev,
+                eventbrite: event,
+                eventbriteUrl: eventUrl ?? prev.eventbriteUrl ?? event.url ?? event.id,
+              }))
+            }
+            onInstagramExported={() =>
+              setOnboarding((prev) => ({ ...prev, instagramExported: true }))
+            }
+            onArtistsExported={() =>
+              setOnboarding((prev) => ({ ...prev, artistsExported: true }))
+            }
+            onConfirmed={setConfirmed}
+            onHubCreated={handleHubCreated}
+          />
+
+          {showDeployBar && confirmed ? (
+            <div className="shrink-0 border-t border-white/20 bg-white/10 px-4 py-4 backdrop-blur-md md:px-6">
+              <div className="mx-auto w-full max-w-3xl">
+                <HubExportBar
+                  confirmed={confirmed}
+                  onboarding={onboarding}
+                  workspace={workspace}
+                  onHubCreated={handleHubCreated}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       </AssistantRuntimeProvider>
     </ConfirmedCtx.Provider>

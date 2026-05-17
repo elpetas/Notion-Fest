@@ -1,61 +1,103 @@
 /**
- * Syncs ticket tier data from an Eventbrite event into a Notion database.
- * Clears existing rows then creates fresh ones from Eventbrite ticket classes.
+ * Full Eventbrite sync into Notion festival databases.
+ * POST /api/eventbrite/sync
+ *
+ * Body:
+ *   eventId — URL or numeric ID
+ *   notionDbId — Ticket tiers database (required)
+ *   venueDbId? — Venues database (event + venue row)
+ *   attendeesDbId? — Attendee list database (guest list)
  */
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import {
+  fetchAllAttendees,
+  fetchEventSummary,
+  fetchTicketClasses,
+  parseEventbriteId,
+} from "@/lib/eventbrite/client";
 import { getNotionClient } from "@/lib/notion/client";
+import { findPageByEbId, queryDatabasePages } from "@/lib/notion/query";
 
 const NOTION_VERSION = "2022-06-28";
 
 const bodySchema = z.object({
   eventId: z.string().min(1),
   notionDbId: z.string().min(1),
+  venueDbId: z.string().optional(),
+  attendeesDbId: z.string().optional(),
 });
 
-/** Accept a raw numeric ID or a full Eventbrite event URL and return the ID. */
-function parseEventbriteId(input: string): string | null {
-  const trimmed = input.trim();
-  // Plain numeric ID
-  if (/^\d+$/.test(trimmed)) return trimmed;
-  // URL: https://www.eventbrite.com/e/event-name-1234567890 (or with query/hash)
-  try {
-    const url = new URL(trimmed);
-    const segments = url.pathname.split("/").filter(Boolean);
-    const last = segments[segments.length - 1] ?? "";
-    const match = last.match(/(\d+)$/);
-    if (match) return match[1];
-  } catch {
-    // not a URL — fall through
+function rt(content: string) {
+  return [{ type: "text" as const, text: { content: content.slice(0, 2000) } }];
+}
+
+function errorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "body" in err) {
+    const body = (err as { body?: { message?: string } }).body;
+    if (body?.message) return body.message;
   }
-  return null;
+  return err instanceof Error ? err.message : "Eventbrite sync failed";
 }
 
-interface EventbriteTicketClass {
-  name: string;
-  cost?: { major_value: string };
-  free: boolean;
-  quantity_total: number;
-  quantity_sold: number;
+/** Notion Venues DB only allows Idea | Shortlist | Booked */
+function mapVenueStatus(eventStatus: string): "Idea" | "Shortlist" | "Booked" {
+  const s = eventStatus.toLowerCase();
+  if (s === "live" || s === "started" || s === "ended" || s === "completed") {
+    return "Booked";
+  }
+  return "Shortlist";
 }
 
-interface EventbriteResponse {
-  ticket_classes?: EventbriteTicketClass[];
-  error?: string;
-  error_description?: string;
+async function archiveDatabaseRows(databaseId: string): Promise<void> {
+  const notion = getNotionClient();
+  const token = process.env.NOTION_API_KEY?.trim();
+  if (!token) return;
+
+  const pages = await queryDatabasePages(databaseId);
+  await Promise.all(
+    pages.map((page) => notion.pages.update({ page_id: page.id, archived: true })),
+  );
+}
+
+function compactProperties(
+  properties: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(properties).filter(([, v]) => v !== undefined),
+  );
+}
+
+async function upsertByEbId(
+  databaseId: string,
+  ebId: string,
+  properties: Record<string, unknown>,
+): Promise<"created" | "updated"> {
+  const notion = getNotionClient();
+  const existingId = await findPageByEbId(databaseId, ebId);
+  const props = {
+    ...compactProperties(properties),
+    "EB ID": { rich_text: rt(ebId) },
+  };
+
+  if (existingId) {
+    await notion.pages.update({
+      page_id: existingId,
+      properties: props as Parameters<typeof notion.pages.update>[0]["properties"],
+    });
+    return "updated";
+  }
+
+  await notion.pages.create({
+    parent: { database_id: databaseId },
+    properties: props as Parameters<typeof notion.pages.create>[0]["properties"],
+  });
+  return "created";
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const apiKey = process.env.EVENTBRITE_API_KEY?.trim();
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "EVENTBRITE_API_KEY is not configured" },
-      { status: 500 },
-    );
-  }
-
   let json: unknown;
   try {
     json = await req.json();
@@ -71,97 +113,180 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const resolvedEventId = parseEventbriteId(parsed.data.eventId);
-  if (!resolvedEventId) {
+  const eventId = parseEventbriteId(parsed.data.eventId);
+  if (!eventId) {
     return NextResponse.json(
       {
         error:
-          "Could not parse an Eventbrite event ID. Paste the full event URL (e.g. eventbrite.com/e/your-event-1234567890) or just the numeric ID.",
+          "Could not parse an Eventbrite event ID. Paste the full event URL or numeric ID.",
       },
       { status: 400 },
     );
   }
 
-  const { notionDbId } = parsed.data;
-  const eventId = resolvedEventId;
+  try {
+    const [event, ticketClasses] = await Promise.all([
+      fetchEventSummary(eventId),
+      fetchTicketClasses(eventId),
+    ]);
 
-  // Fetch ticket classes from Eventbrite
-  const ebRes = await fetch(
-    `https://www.eventbriteapi.com/v3/events/${eventId}/ticket_classes/`,
-    {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    },
-  );
+    const notion = getNotionClient();
+    const { notionDbId, venueDbId, attendeesDbId } = parsed.data;
+    const warnings: string[] = [];
 
-  const ebData = (await ebRes.json()) as EventbriteResponse;
+    // ── Ticket tiers (replace all rows) ─────────────────────────────────────
+    let tierCount = 0;
+    if (ticketClasses.length === 0) {
+      warnings.push("No ticket classes on Eventbrite — skipped ticket tiers.");
+    } else {
+      try {
+        await archiveDatabaseRows(notionDbId);
 
-  if (!ebRes.ok) {
-    const msg =
-      ebData.error_description ?? ebData.error ?? `Eventbrite error ${ebRes.status}`;
-    return NextResponse.json({ error: msg }, { status: 502 });
-  }
+        for (const tc of ticketClasses) {
+          const price = tc.free ? 0 : parseFloat(tc.cost?.major_value ?? "0");
+          const remaining = Math.max(0, tc.quantity_total - tc.quantity_sold);
+          const properties: Record<string, unknown> = {
+            Tier: { title: rt(tc.name) },
+            Price: { number: price },
+            Capacity: { number: tc.quantity_total },
+            Sold: { number: tc.quantity_sold },
+            Remaining: { number: remaining },
+            "EB ID": { rich_text: rt(tc.id) },
+          };
 
-  const ticketClasses = ebData.ticket_classes ?? [];
-  if (ticketClasses.length === 0) {
-    return NextResponse.json(
-      { error: "No ticket classes found for this event. Make sure the event has at least one ticket tier." },
-      { status: 404 },
-    );
-  }
+          if (tc.on_sale_status) {
+            properties["On sale status"] = { rich_text: rt(tc.on_sale_status) };
+          }
+          if (tc.sales_end) {
+            properties["Sales end"] = { date: { start: tc.sales_end } };
+          }
+          if (tc.description) {
+            properties.Perks = { rich_text: rt(tc.description) };
+          }
 
-  const notion = getNotionClient();
-  const notionToken = process.env.NOTION_API_KEY?.trim();
+          await notion.pages.create({
+            parent: { database_id: notionDbId },
+            properties: properties as Parameters<typeof notion.pages.create>[0]["properties"],
+          });
+          tierCount += 1;
+        }
+      } catch (tierErr) {
+        warnings.push(`Ticket tiers sync failed: ${errorMessage(tierErr)}`);
+      }
+    }
 
-  // Archive all existing rows via the raw REST endpoint (databases.query was
-  // removed from @notionhq/client v5; use fetch against the stable REST API).
-  if (notionToken) {
-    const queryRes = await fetch(
-      `https://api.notion.com/v1/databases/${notionDbId}/query`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${notionToken}`,
-          "Notion-Version": NOTION_VERSION,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}),
-      },
-    );
-    if (queryRes.ok) {
-      const queryData = (await queryRes.json()) as { results: Array<{ id: string }> };
-      await Promise.all(
-        queryData.results.map((page) =>
-          notion.pages.update({ page_id: page.id, archived: true }),
-        ),
+    // ── Venue / event row ───────────────────────────────────────────────────
+    let venueResult: { created: boolean; updated: boolean } | null = null;
+    if (venueDbId) {
+      try {
+        const venueTitle = event.venueName || event.name;
+        const notes = [
+          event.url ? `Eventbrite: ${event.url}` : null,
+          event.status ? `Status: ${event.status}` : null,
+          event.isSoldOut ? "SOLD OUT" : null,
+          event.description ? event.description.slice(0, 500) : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const result = await upsertByEbId(venueDbId, event.id, {
+          Name: { title: rt(venueTitle) },
+          Capacity: {
+            number: event.venueCapacity ?? event.capacity ?? 0,
+          },
+          Notes: { rich_text: rt(notes) },
+          Status: {
+            select: {
+              name: mapVenueStatus(event.status),
+            },
+          },
+          "Event URL": event.url ? { url: event.url } : undefined,
+          "Event start": event.startUtc ? { date: { start: event.startUtc } } : undefined,
+          "Event end": event.endUtc ? { date: { start: event.endUtc } } : undefined,
+        });
+
+        venueResult = {
+          created: result === "created",
+          updated: result === "updated",
+        };
+      } catch (venueErr) {
+        warnings.push(`Venue sync failed: ${errorMessage(venueErr)}`);
+      }
+    }
+
+    // ── Attendees (upsert by EB ID) ─────────────────────────────────────────
+    let attendeesResult: { created: number; updated: number; total: number } | null =
+      null;
+    if (attendeesDbId) {
+      try {
+        const attendees = await fetchAllAttendees(eventId);
+        let created = 0;
+        let updated = 0;
+
+        for (const a of attendees) {
+          const statusName = a.checkedIn
+            ? "Checked in"
+            : a.status?.toLowerCase().includes("cancel")
+              ? "Cancelled"
+              : "Registered";
+
+          const result = await upsertByEbId(attendeesDbId, a.id, {
+            Name: { title: rt(a.name) },
+            Email: a.email ? { email: a.email } : undefined,
+            "Ticket tier": { rich_text: rt(a.ticketClassName) },
+            Status: { select: { name: statusName } },
+            "Checked in": { checkbox: a.checkedIn },
+            "Order date": a.created ? { date: { start: a.created } } : undefined,
+          });
+          if (result === "created") created += 1;
+          else updated += 1;
+        }
+
+        attendeesResult = { created, updated, total: attendees.length };
+      } catch (attendeesErr) {
+        warnings.push(`Guest list sync failed: ${errorMessage(attendeesErr)}`);
+      }
+    }
+
+    const didSync =
+      tierCount > 0 || venueResult != null || (attendeesResult?.total ?? 0) > 0;
+    if (!didSync && warnings.length === 0) {
+      return NextResponse.json(
+        { error: "Nothing to sync for this event (no tiers, venue, or guests)." },
+        { status: 404 },
       );
     }
+
+    return NextResponse.json({
+      event: {
+        id: event.id,
+        name: event.name,
+        status: event.status,
+        url: event.url,
+        startUtc: event.startUtc,
+        endUtc: event.endUtc,
+        venueName: event.venueName,
+        venueAddress: event.venueAddress,
+        isSoldOut: event.isSoldOut,
+        capacity: event.capacity,
+      },
+      tiers: ticketClasses.map((tc) => ({
+        name: tc.name,
+        price: tc.free ? 0 : parseFloat(tc.cost?.major_value ?? "0"),
+        capacity: tc.quantity_total,
+        sold: tc.quantity_sold,
+        remaining: Math.max(0, tc.quantity_total - tc.quantity_sold),
+        onSaleStatus: tc.on_sale_status ?? null,
+        salesEnd: tc.sales_end ?? null,
+      })),
+      synced: tierCount,
+      venue: venueResult,
+      attendees: attendeesResult,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    });
+  } catch (err) {
+    const message = errorMessage(err);
+    const status = message.includes("not configured") ? 500 : 502;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  // Create a fresh row for each Eventbrite ticket class
-  const tiers = await Promise.all(
-    ticketClasses.map((tc) => {
-      const price = tc.free ? 0 : parseFloat(tc.cost?.major_value ?? "0");
-      return notion.pages.create({
-        parent: { type: "database_id", database_id: notionDbId },
-        properties: {
-          Tier: {
-            title: [{ type: "text", text: { content: tc.name } }],
-          },
-          Price: { number: price },
-          Capacity: { number: tc.quantity_total },
-          Sold: { number: tc.quantity_sold },
-        },
-      });
-    }),
-  );
-
-  return NextResponse.json({
-    synced: tiers.length,
-    tiers: ticketClasses.map((tc) => ({
-      name: tc.name,
-      price: tc.free ? 0 : parseFloat(tc.cost?.major_value ?? "0"),
-      capacity: tc.quantity_total,
-      sold: tc.quantity_sold,
-    })),
-  });
 }

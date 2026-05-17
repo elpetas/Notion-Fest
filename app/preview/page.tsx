@@ -34,6 +34,7 @@ const PHASE_GROUPS: Record<string, string[]> = {
   Marketing: [
     "Audience segments",
     "Social schedule",
+    "Instagram engagement funnel",
     "Ad copies",
     "Flyer designs",
     "Press & media",

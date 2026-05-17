@@ -145,6 +145,9 @@ export async function POST(request: Request) {
           INSTAGRAM_APP_SECRET: process.env.INSTAGRAM_APP_SECRET ?? "",
           INSTAGRAM_ACCESS_TOKEN: process.env.INSTAGRAM_ACCESS_TOKEN ?? "",
           INSTAGRAM_USER_ID: process.env.INSTAGRAM_USER_ID ?? "",
+          NOTIONCHELLA_APP_URL: process.env.NOTIONCHELLA_APP_URL ?? "",
+          ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+          OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
         },
       }),
     );

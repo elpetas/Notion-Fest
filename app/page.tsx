@@ -5,14 +5,8 @@
  * for edge-to-edge imagery on ultrawide screens, use a wide asset (~2400px+) or accept side crop.
  */
 
-import localFont from "next/font/local";
-
 import { WorkspaceSetupForm } from "@/components/workspace-setup-form";
-
-const chellaType = localFont({
-  src: "../fonts/ChellaType-Regular.ttf",
-  display: "swap",
-});
+import { chellaType } from "@/lib/fonts/chella-type";
 
 export default function Home() {
   return (

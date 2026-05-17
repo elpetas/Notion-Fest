@@ -58,32 +58,31 @@ export const Thread: FC = () => {
         ["--composer-padding" as string]: "10px",
       }}
     >
-      <ThreadPrimitive.Viewport
-        turnAnchor="top"
-        data-slot="aui_thread-viewport"
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
-      >
-        <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
+        <ThreadPrimitive.Viewport
+          turnAnchor="top"
+          data-slot="aui_thread-viewport"
+          className="relative min-h-0 flex-1 overflow-x-auto overflow-y-auto scroll-smooth"
+        >
           <AuiIf condition={(s) => s.thread.isEmpty}>
             <ThreadWelcome />
           </AuiIf>
 
           <div
             data-slot="aui_message-group"
-            className="mb-10 flex flex-col gap-y-8 empty:hidden"
+            className="flex flex-col gap-y-8 pb-4 empty:hidden"
           >
             <ThreadPrimitive.Messages>
               {() => <ThreadMessage />}
             </ThreadPrimitive.Messages>
           </div>
+        </ThreadPrimitive.Viewport>
 
-          {/* composer footer sits over the glass container background */}
-          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex flex-col gap-4 overflow-visible rounded-t-(--composer-radius) bg-white/10 backdrop-blur-md pb-4 md:pb-6">
-            <ThreadScrollToBottom />
-            <Composer />
-          </ThreadPrimitive.ViewportFooter>
-        </div>
-      </ThreadPrimitive.Viewport>
+        <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer z-10 flex shrink-0 flex-col gap-2 border-t border-white/20 bg-white/10 pt-3 pb-4 backdrop-blur-md md:pb-5">
+          <ThreadScrollToBottom />
+          <Composer />
+        </ThreadPrimitive.ViewportFooter>
+      </div>
     </ThreadPrimitive.Root>
   );
 };
@@ -109,10 +108,10 @@ const ThreadWelcome: FC = () => {
       <div className="aui-thread-welcome-center flex w-full grow flex-col items-center justify-center">
         <div className="aui-thread-welcome-message flex size-full flex-col justify-center px-4">
           <h2 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl text-white duration-200">
-            What&apos;s the vibe?
+            Let&apos;s build your festival hub
           </h2>
           <p className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-white/70 text-xl delay-75 duration-200">
-            Describe your event — genre, budget, dates, and vibe.
+            Start with your Eventbrite link — we&apos;ll pull dates, venue, and capacity, then sync Instagram and your artist roster to Notion.
           </p>
         </div>
       </div>
@@ -143,7 +142,7 @@ const Composer: FC = () => {
   return (
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <ComposerPrimitive.AttachmentDropzone render={<div data-slot="aui_composer-shell" className="flex w-full flex-col gap-2 rounded-(--composer-radius) border border-white/30 bg-white/20 backdrop-blur-sm p-(--composer-padding) transition-shadow focus-within:border-white/60 focus-within:ring-2 focus-within:ring-white/20 data-[dragging=true]:border-white/50 data-[dragging=true]:border-dashed data-[dragging=true]:bg-white/30" />}><ComposerAttachments /><ComposerPrimitive.Input
-                      placeholder="Describe your event…"
+                      placeholder="Paste your Eventbrite link or ask a question…"
                       className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm text-white outline-none placeholder:text-white/60"
                       rows={1}
                       autoFocus

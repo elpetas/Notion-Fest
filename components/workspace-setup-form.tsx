@@ -94,6 +94,7 @@ export function WorkspaceSetupForm({ className }: WorkspaceSetupFormProps) {
     <div ref={wrapRef} className={cn("glass-form w-full max-w-md", className)}>
       <form onSubmit={handleContinue}>
         <GlassCard
+          id="workspace-setup-glass-card"
           {...glassPreset}
           width={glassWidth}
           padding="22px 26px"
