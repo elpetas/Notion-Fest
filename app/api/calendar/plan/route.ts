@@ -9,6 +9,10 @@ import { z } from "zod";
 import { applyCalendarToNotion } from "@/lib/calendar/apply-notion";
 import { generateFestivalCalendar } from "@/lib/calendar/generate-plan";
 import { gatherNotionWorkspace } from "@/lib/calendar/gather-notion";
+import {
+  discoverDatabasesFromHub,
+  mergeWithDiscovered,
+} from "@/lib/notion/discover-databases";
 
 const bodySchema = z.object({
   hubPageId: z.string().optional(),
@@ -41,17 +45,55 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const input = parsed.data;
-  const hasDb =
-    input.ticketTiersDbId ||
-    input.venuesDbId ||
-    input.socialDbId ||
-    input.rosterDbId;
 
-  if (!hasDb) {
-    return NextResponse.json(
-      { error: "Provide at least one Notion database ID (ticket tiers, venues, social, or roster)." },
-      { status: 400 },
-    );
+  let resolvedHubPageId = input.hubPageId;
+  let resolvedDbs = {
+    venuesDbId: input.venuesDbId,
+    ticketTiersDbId: input.ticketTiersDbId,
+    rosterDbId: input.rosterDbId,
+    socialDbId: input.socialDbId,
+    logisticsDbId: input.logisticsDbId,
+    adCopiesDbId: input.adCopiesDbId,
+    flyerDbId: input.flyerDbId,
+  };
+
+  // Hackathon demo mode: if nothing provided, auto-discover everything
+  const hasAnyId =
+    resolvedHubPageId ||
+    resolvedDbs.ticketTiersDbId ||
+    resolvedDbs.venuesDbId ||
+    resolvedDbs.socialDbId ||
+    resolvedDbs.rosterDbId;
+
+  if (!hasAnyId) {
+    try {
+      const { autoDiscoverEverything } = await import(
+        "@/lib/notion/discover-databases"
+      );
+      const discovered = await autoDiscoverEverything();
+      resolvedHubPageId = discovered.hubPageId;
+      resolvedDbs = mergeWithDiscovered(resolvedDbs, discovered.databases);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: `Auto-discovery failed: ${err instanceof Error ? err.message : "unknown error"}`,
+        },
+        { status: 500 },
+      );
+    }
+  } else if (resolvedHubPageId) {
+    // If hub page ID provided, discover databases from it
+    try {
+      const discovered = await discoverDatabasesFromHub(resolvedHubPageId);
+      resolvedDbs = mergeWithDiscovered(resolvedDbs, discovered);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          error: `Failed to discover databases from hub page: ${err instanceof Error ? err.message : "unknown error"}`,
+        },
+        { status: 500 },
+      );
+    }
   }
 
   if (!process.env.ANTHROPIC_API_KEY?.trim()) {
@@ -63,14 +105,14 @@ export async function POST(req: Request): Promise<Response> {
 
   try {
     const snapshot = await gatherNotionWorkspace({
-      hubPageId: input.hubPageId,
-      venuesDbId: input.venuesDbId,
-      ticketTiersDbId: input.ticketTiersDbId,
-      rosterDbId: input.rosterDbId,
-      socialDbId: input.socialDbId,
-      logisticsDbId: input.logisticsDbId,
-      adCopiesDbId: input.adCopiesDbId,
-      flyerDbId: input.flyerDbId,
+      hubPageId: resolvedHubPageId,
+      venuesDbId: resolvedDbs.venuesDbId,
+      ticketTiersDbId: resolvedDbs.ticketTiersDbId,
+      rosterDbId: resolvedDbs.rosterDbId,
+      socialDbId: resolvedDbs.socialDbId,
+      logisticsDbId: resolvedDbs.logisticsDbId,
+      adCopiesDbId: resolvedDbs.adCopiesDbId,
+      flyerDbId: resolvedDbs.flyerDbId,
     });
 
     const plan = await generateFestivalCalendar({
@@ -82,8 +124,8 @@ export async function POST(req: Request): Promise<Response> {
     let applied = null;
     if (input.writeToNotion) {
       applied = await applyCalendarToNotion(plan, {
-        socialDbId: input.socialDbId,
-        logisticsDbId: input.logisticsDbId,
+        socialDbId: resolvedDbs.socialDbId,
+        logisticsDbId: resolvedDbs.logisticsDbId,
       });
     }
 
