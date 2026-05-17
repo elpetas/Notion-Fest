@@ -11,7 +11,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import { AssistantRuntimeProvider, useAui, useAssistantToolUI } from "@assistant-ui/react";
 import {
@@ -41,6 +40,10 @@ import type {
 
 const KICKOFF_KEY = "notionFestChatKickoff";
 
+// ---------------------------------------------------------------------------
+// Context — lets the tool UI pass confirmed settings up to the page
+// ---------------------------------------------------------------------------
+
 interface ConfirmedCtxValue {
   confirmed: FestivalSettings | null;
   onConfirmed: (s: FestivalSettings) => void;
@@ -50,6 +53,10 @@ const ConfirmedCtx = createContext<ConfirmedCtxValue>({
   confirmed: null,
   onConfirmed: () => {},
 });
+
+// ---------------------------------------------------------------------------
+// Tool UI components
+// ---------------------------------------------------------------------------
 
 function ConfirmSettingsToolPart({
   toolPart,
@@ -101,6 +108,10 @@ function FestivalSettingsToolUI() {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Chat kickoff — fires a seeding message once per session
+// ---------------------------------------------------------------------------
+
 function ChatKickoff() {
   const aui = useAui();
 
@@ -124,6 +135,10 @@ function ChatKickoff() {
 
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Hub export bar — deploy worker + push onboarding data to Notion
+// ---------------------------------------------------------------------------
 
 interface HubExportBarProps {
   confirmed: FestivalSettings;
@@ -154,7 +169,10 @@ function HubExportBar({
           Onboarding data is synced into your connected Notion workspace.
         </p>
         <a
-          className={cn(buttonVariants({ variant: "outline" }), "mt-4 inline-flex rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20")}
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "mt-4 inline-flex rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20",
+          )}
           href={workspace.hubPageUrl}
           target="_blank"
           rel="noreferrer"
@@ -259,7 +277,7 @@ function HubExportBar({
   return (
     <section
       aria-labelledby="notion-ready-heading"
-      className="rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md"
+      className="mx-auto w-full max-w-2xl rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md"
     >
       <h2 id="notion-ready-heading" className="text-base font-semibold tracking-tight">
         Deploy your worker
@@ -299,6 +317,9 @@ function HubExportBar({
             Open in Notion ↗
           </a>
         ) : null}
+        {notionState.kind === "error" ? (
+          <p className="text-red-200 text-sm">{notionState.message}</p>
+        ) : null}
       </div>
       {notionState.kind === "ok" && notionState.syncNote ? (
         <p className="mt-3 text-sm text-emerald-200/90">{notionState.syncNote}</p>
@@ -309,6 +330,10 @@ function HubExportBar({
     </section>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Inner content — inside AssistantRuntimeProvider to use tool UI hooks
+// ---------------------------------------------------------------------------
 
 function ChatContent({
   confirmed,
@@ -362,10 +387,13 @@ function ChatContent({
           {!workspace && hasPendingOnboarding() ? " · Syncs when hub is created" : ""}
         </p>
       ) : null}
-
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Page root
+// ---------------------------------------------------------------------------
 
 export default function ChatPage() {
   const [confirmed, setConfirmed] = useState<FestivalSettings | null>(null);
@@ -409,16 +437,12 @@ export default function ChatPage() {
         } catch {
           // ignore
         }
-        // read fresh on every send so it picks up prefs set after mount
-        const prefs = readWorkspacePrefs();
         return {
           body: {
             ...body,
             messages,
             ...(ws?.hubPageId ? { workspace: ws } : {}),
             onboarding: onboardingRef.current,
-            // pass event name so agent skips asking for it
-            ...(prefs.hubTitle.trim() ? { hubTitle: prefs.hubTitle.trim() } : {}),
           },
         };
       },
@@ -435,7 +459,7 @@ export default function ChatPage() {
     <ConfirmedCtx.Provider value={{ confirmed, onConfirmed: setConfirmed }}>
       <AssistantRuntimeProvider runtime={runtime}>
         <div className="flex h-dvh flex-col overflow-hidden bg-[#C38F6C]">
-          <header className="z-20 flex shrink-0 items-center justify-between border-b border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
+          <header className="z-20 flex shrink-0 items-center justify-between border-b border-white/20 bg-[#C38F6C] px-5 py-3">
             <Link
               href="/"
               className={`${chellaType.className} text-xl leading-none text-white drop-shadow-sm transition-opacity hover:opacity-80`}
