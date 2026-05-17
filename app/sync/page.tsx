@@ -350,40 +350,27 @@ export default function SyncPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-border flex items-center justify-between border-b px-6 py-3">
-        <span className="text-sm font-medium">Notion Fest</span>
-        <nav className="flex items-center gap-2">
-          <Link
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            href="/preview"
-          >
-            Preview
-          </Link>
-          <Link
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            href="/chat"
-          >
-            Chat planner
-          </Link>
-          <Link
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            href="/"
-          >
-            Home
-          </Link>
-        </nav>
-      </header>
-
+    <div className="flex min-h-[calc(100vh-3rem)] flex-col bg-[#C38F6C]">
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Sync integrations
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Push live data from external services into your Notion festival
-            workspace databases.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">
+              Sync integrations
+            </h1>
+            <p className="mt-1 text-sm text-white/70">
+              Push live data from external services into your Notion festival
+              workspace databases.
+            </p>
+          </div>
+          <Link
+            href="/chat"
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "shrink-0 border-white/30 bg-white/15 text-white hover:bg-white/25 hover:text-white",
+            )}
+          >
+            Continue to Chat →
+          </Link>
         </div>
 
         {/* Workspace connection */}
@@ -939,7 +926,7 @@ export default function SyncPage() {
 
         {/* Coming soon */}
         <div className="grid gap-3">
-          <p className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+          <p className="text-white/60 text-xs font-medium uppercase tracking-wider">
             Coming soon
           </p>
           {COMING_SOON.map((integration) => (

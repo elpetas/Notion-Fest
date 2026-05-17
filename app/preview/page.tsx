@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -147,37 +146,13 @@ export default function PreviewPage() {
   const isSuccess = notionState.kind === "ok";
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-border flex items-center justify-between border-b px-6 py-3">
-        <span className="text-sm font-medium">Notion Fest</span>
-        <nav className="flex items-center gap-2">
-          <Link
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            href="/sync"
-          >
-            Sync
-          </Link>
-          <Link
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            href="/chat"
-          >
-            Chat planner
-          </Link>
-          <Link
-            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            href="/"
-          >
-            Home
-          </Link>
-        </nav>
-      </header>
-
+    <div className="flex min-h-[calc(100vh-3rem)] flex-col bg-[#C38F6C]">
       <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">
             Festival workspace preview
           </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <p className="mt-1 text-sm text-white/70">
             Review and edit the festival details below, then export the full
             planning workspace to Notion — six phase sections with 16 databases.
           </p>

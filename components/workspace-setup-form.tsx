@@ -85,7 +85,7 @@ export function WorkspaceSetupForm({ className }: WorkspaceSetupFormProps) {
     (e: React.FormEvent) => {
       e.preventDefault();
       writeWorkspacePrefs({ parentPageUrl, hubTitle });
-      router.push("/chat");
+      router.push("/sync");
     },
     [hubTitle, parentPageUrl, router],
   );
