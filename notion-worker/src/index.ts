@@ -240,8 +240,9 @@ worker.tool("generateDraftContent", {
 worker.tool("planFestivalCalendar", {
   title: "Plan Festival Calendar",
   description:
-    "Analyzes the Notion festival workspace and returns a marketing + logistics calendar. HACKATHON DEMO MODE: No parameters required! Auto-discovers the first page in workspace and all databases. Optionally set writeToNotion to true to create rows. Requires NOTIONCHELLA_APP_URL.",
+    "Analyzes the Notion festival workspace and returns a marketing + logistics calendar. HACKATHON DEMO MODE: No parameters required! Auto-discovers the first page in workspace and all databases. Optionally set writeToNotion to true to create rows, or pass hubPageId to use a specific page. Requires NOTIONCHELLA_APP_URL.",
   schema: j.object({
+    hubPageId: j.string().nullable(),
     writeToNotion: j.string().nullable(),
     weeksBefore: j.string().nullable(),
     weeksAfter: j.string().nullable(),
@@ -261,6 +262,11 @@ worker.tool("planFestivalCalendar", {
       weeksBefore: parseInt(input.weeksBefore ?? "4", 10) || 4,
       weeksAfter: parseInt(input.weeksAfter ?? "1", 10) || 1,
     };
+
+    // Allow explicit hubPageId override
+    if (input.hubPageId?.trim()) {
+      body.hubPageId = input.hubPageId.trim();
+    }
 
     const res = await fetch(`${appUrl.replace(/\/$/, "")}/api/calendar/plan`, {
       method: "POST",

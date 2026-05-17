@@ -3,13 +3,15 @@
 #   .\exec-tool.ps1 -Tool sayHello -Payload @{ name = "Johan" }
 #   .\exec-tool.ps1 -Tool planFestivalCalendar  # Demo mode - auto-populates defaults!
 #   .\exec-tool.ps1 -Tool planFestivalCalendar -Payload @{ writeToNotion = "true" }
+#   .\exec-tool.ps1 -Tool planFestivalCalendar -PageId "3632f6c3f31a818bab24d964cb14acb3"
 # Auto-discovers the first worker in your workspace (no .env config needed).
 
 param(
   [Parameter(Mandatory = $true)]
   [string]$Tool,
   [hashtable]$Payload = @{},
-  [string]$WorkerId
+  [string]$WorkerId,
+  [string]$PageId
 )
 
 # Auto-populate demo-friendly defaults for planFestivalCalendar
@@ -18,6 +20,11 @@ if ($Tool -eq "planFestivalCalendar") {
     writeToNotion = "false"
     weeksBefore = "4"
     weeksAfter = "1"
+  }
+  
+  # Add hubPageId if -PageId was provided
+  if ($PageId) {
+    $defaults["hubPageId"] = $PageId
   }
   
   # Merge user payload with defaults (user values take precedence)
@@ -31,6 +38,9 @@ if ($Tool -eq "planFestivalCalendar") {
   Write-Host "  writeToNotion = $($Payload.writeToNotion)"
   Write-Host "  weeksBefore = $($Payload.weeksBefore)"
   Write-Host "  weeksAfter = $($Payload.weeksAfter)"
+  if ($Payload.ContainsKey("hubPageId")) {
+    Write-Host "  hubPageId = $($Payload.hubPageId)"
+  }
   Write-Host ""
 }
 
