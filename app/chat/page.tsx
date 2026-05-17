@@ -153,8 +153,8 @@ function Sidebar({ open, onToggle, confirmed }: SidebarProps) {
       {/* top row */}
       <div className="flex h-12 items-center gap-2 px-3">
         {open && (
-          <span className="flex-1 text-xs font-semibold uppercase tracking-widest text-white/60">
-            events
+          <span className="font-chella flex-1 text-base leading-none text-white/70">
+            Notionchella
           </span>
         )}
         <button
