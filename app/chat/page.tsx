@@ -241,8 +241,8 @@ export default function ChatPage() {
       <AssistantRuntimeProvider runtime={runtime}>
         {/* warm terracotta full-page background */}
         <div className="flex min-h-screen flex-col bg-[#C38F6C]">
-          {/* header — glass strip */}
-          <header className="sticky top-0 z-20 flex items-center border-b border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
+          {/* header — no background, no border */}
+          <header className="sticky top-0 z-20 flex items-center px-5 py-3">
             <Link
               href="/"
               className="font-chella text-xl leading-none text-white drop-shadow-sm hover:opacity-80 transition-opacity"
