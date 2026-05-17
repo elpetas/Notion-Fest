@@ -105,16 +105,15 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   return (
-    <div className="aui-thread-welcome-root my-auto flex grow flex-col">
-      <div className="aui-thread-welcome-center flex w-full grow flex-col items-center justify-center">
-        <div className="aui-thread-welcome-message flex size-full flex-col justify-center px-4">
-          <h2 className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl text-white duration-200">
-            What&apos;s the vibe?
-          </h2>
-          <p className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-white/70 text-xl delay-75 duration-200">
-            Describe your event — genre, budget, dates, and vibe.
-          </p>
+    <div className="aui-thread-welcome-root my-auto flex grow flex-col items-center justify-center">
+      <div className="flex flex-col items-center gap-4 text-center">
+        {/* "N" icon — Notionchella monogram */}
+        <div className="flex size-14 items-center justify-center rounded-xl border border-white/30 bg-white/15 backdrop-blur-sm shadow-sm">
+          <span className="text-2xl font-bold text-white leading-none select-none">N</span>
         </div>
+        <p className="text-white/75 text-base leading-snug">
+          talk to me, i&apos;m here to help..
+        </p>
       </div>
       <ThreadSuggestions />
     </div>

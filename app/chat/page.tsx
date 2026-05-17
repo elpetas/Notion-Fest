@@ -1,7 +1,7 @@
 /**
- * Chat page — assistant-ui Thread backed by the /api/chat streaming route.
- * Background is #C38F6C (warm terracotta) with glassmorphism containers.
- * Confirmed festival settings bubble up via context → "Ready for Notion" card.
+ * Chat page — sidebar + assistant-ui Thread layout.
+ * Sidebar is collapsible and holds events list + Notion action.
+ * Thread fills the main content area; welcome state is centered.
  */
 
 "use client";
@@ -9,8 +9,8 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
-  type ReactNode,
 } from "react";
 import {
   AssistantRuntimeProvider,
@@ -24,11 +24,12 @@ import { Thread } from "@/components/assistant-ui/thread";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { PanelLeft, ArrowLeft } from "lucide-react";
 import { readWorkspacePrefs } from "@/lib/workspace-storage";
 import type { FestivalSettings, NotionSetupResponse } from "@/types/festival";
 
 // ---------------------------------------------------------------------------
-// Context — lets the ConfirmFestivalSettings tool UI pass settings up
+// Context — lets the tool UI pass confirmed settings up to the sidebar
 // ---------------------------------------------------------------------------
 
 interface ConfirmedCtxValue {
@@ -42,7 +43,7 @@ const ConfirmedCtx = createContext<ConfirmedCtxValue>({
 });
 
 // ---------------------------------------------------------------------------
-// Tool UI — renders inline when the agent calls confirmFestivalSettings
+// Tool UI — renders inline inside the Thread for confirmFestivalSettings calls
 // ---------------------------------------------------------------------------
 
 function FestivalSettingsToolUI() {
@@ -54,7 +55,6 @@ function FestivalSettingsToolUI() {
       const result = toolPart.result as FestivalSettings | undefined;
       const isDone = toolPart.status.type === "complete";
 
-      // bubble confirmed settings up to the page state
       if (isDone && result) {
         onConfirmed(result);
       }
@@ -85,14 +85,20 @@ function FestivalSettingsToolUI() {
 }
 
 // ---------------------------------------------------------------------------
-// "Ready for Notion" card — shown once settings are confirmed
+// Collapsible sidebar
 // ---------------------------------------------------------------------------
 
-interface NotionCardProps {
-  confirmed: FestivalSettings;
+// placeholder past events — gives the sidebar its list feel from the wireframe
+const PAST_EVENTS = ["Summer Fest '25", "Winter Warmup", "Block Party"];
+
+interface SidebarProps {
+  open: boolean;
+  onToggle: () => void;
+  confirmed: FestivalSettings | null;
 }
 
-function NotionReadyCard({ confirmed }: NotionCardProps) {
+function Sidebar({ open, onToggle, confirmed }: SidebarProps) {
+  const [hubTitle, setHubTitle] = useState("New event");
   const [notionState, setNotionState] = useState<
     | { kind: "idle" }
     | { kind: "loading" }
@@ -100,15 +106,19 @@ function NotionReadyCard({ confirmed }: NotionCardProps) {
     | { kind: "error"; message: string }
   >({ kind: "idle" });
 
+  useEffect(() => {
+    const prefs = readWorkspacePrefs();
+    if (prefs.hubTitle.trim()) setHubTitle(prefs.hubTitle.trim());
+  }, []);
+
   async function handleSendToNotion() {
+    if (!confirmed) return;
     setNotionState({ kind: "loading" });
     try {
       const prefs = readWorkspacePrefs();
       const body = {
         ...confirmed,
-        ...(prefs.parentPageUrl.trim()
-          ? { parentPageUrl: prefs.parentPageUrl.trim() }
-          : {}),
+        ...(prefs.parentPageUrl.trim() ? { parentPageUrl: prefs.parentPageUrl.trim() } : {}),
         ...(prefs.hubTitle.trim() ? { hubTitle: prefs.hubTitle.trim() } : {}),
       };
       const res = await fetch("/api/notion/setup", {
@@ -118,10 +128,9 @@ function NotionReadyCard({ confirmed }: NotionCardProps) {
       });
       const data: unknown = await res.json();
       if (!res.ok) {
-        const msg =
-          typeof (data as { error?: string }).error === "string"
-            ? (data as { error: string }).error
-            : "Notion request failed";
+        const msg = typeof (data as { error?: string }).error === "string"
+          ? (data as { error: string }).error
+          : "Notion request failed";
         setNotionState({ kind: "error", message: msg });
         return;
       }
@@ -135,93 +144,115 @@ function NotionReadyCard({ confirmed }: NotionCardProps) {
   }
 
   return (
-    <section
-      aria-labelledby="notion-ready-heading"
-      className="rounded-2xl border border-white/25 bg-white/15 backdrop-blur-md p-5 text-white shadow-md"
+    <aside
+      className={cn(
+        "relative flex flex-shrink-0 flex-col border-r border-white/20 transition-[width] duration-300 overflow-hidden",
+        open ? "w-52" : "w-12",
+      )}
     >
-      <h2
-        id="notion-ready-heading"
-        className="text-base font-semibold tracking-tight"
-      >
-        Ready for Notion
-      </h2>
-      <p className="mt-0.5 text-sm text-white/70">
-        Send this to Notion to scaffold your event workspace.
-      </p>
-
-      <dl className="mt-4 grid gap-2.5 border-t border-white/20 pt-4 text-sm md:grid-cols-2">
-        {(
-          [
-            ["Budget", confirmed.budget],
-            ["Genre", confirmed.genre],
-            ["Dates", confirmed.dateRange],
-            ["Vibe", confirmed.vibe],
-          ] as [string, string][]
-        ).map(([label, value]) => (
-          <div key={label} className="space-y-0.5">
-            <dt className="text-xs font-medium uppercase tracking-wide text-white/50">
-              {label}
-            </dt>
-            <dd className="font-medium">{value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
-        <Button
-          onClick={() => void handleSendToNotion()}
-          disabled={notionState.kind === "loading"}
-          className="rounded-xl px-5"
+      {/* top row */}
+      <div className="flex h-12 items-center gap-2 px-3">
+        {open && (
+          <span className="flex-1 text-xs font-semibold uppercase tracking-widest text-white/60">
+            events
+          </span>
+        )}
+        <button
+          onClick={onToggle}
+          aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
+          className="rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white transition-colors"
         >
-          {notionState.kind === "loading" ? "Creating…" : "Send to Notion"}
-        </Button>
-        {notionState.kind === "ok" ? (
-          <a
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20",
-            )}
-            href={notionState.data.hubPageUrl}
-            target="_blank"
-            rel="noreferrer"
+          <PanelLeft className="size-4" />
+        </button>
+      </div>
+
+      {/* divider */}
+      <div className="mx-3 border-t border-white/15" />
+
+      {/* events list */}
+      {open && (
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-3">
+          {/* active event */}
+          <div className="rounded-lg bg-white/20 px-3 py-2 text-sm font-medium text-white truncate">
+            {hubTitle}
+          </div>
+
+          {/* past events (placeholder) */}
+          <div className="mx-1 my-1 border-t border-white/15" />
+          {PAST_EVENTS.map((name) => (
+            <button
+              key={name}
+              className="w-full rounded-lg px-3 py-2 text-left text-sm text-white/45 hover:bg-white/10 hover:text-white/80 transition-colors truncate"
+            >
+              {name}
+            </button>
+          ))}
+
+          {/* notion ready section — appears once settings are confirmed */}
+          {confirmed ? (
+            <div className="mt-auto pt-3">
+              <div className="mx-1 border-t border-white/15 pb-3" />
+              <p className="px-1 text-xs font-semibold uppercase tracking-widest text-white/60 mb-2">
+                Ready for Notion
+              </p>
+              <dl className="space-y-1.5 px-1 text-xs text-white/80">
+                <div>
+                  <dt className="text-white/45">Genre</dt>
+                  <dd className="font-medium truncate">{confirmed.genre}</dd>
+                </div>
+                <div>
+                  <dt className="text-white/45">Budget</dt>
+                  <dd className="font-medium truncate">{confirmed.budget}</dd>
+                </div>
+                <div>
+                  <dt className="text-white/45">Dates</dt>
+                  <dd className="font-medium truncate">{confirmed.dateRange}</dd>
+                </div>
+              </dl>
+              <div className="mt-3 flex flex-col gap-1.5">
+                <Button
+                  size="sm"
+                  onClick={() => void handleSendToNotion()}
+                  disabled={notionState.kind === "loading"}
+                  className="w-full rounded-lg text-xs px-3"
+                >
+                  {notionState.kind === "loading" ? "Creating…" : "Send to Notion"}
+                </Button>
+                {notionState.kind === "ok" ? (
+                  <a
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "w-full rounded-lg border-white/25 bg-white/10 text-white hover:bg-white/20 text-xs px-3 h-8",
+                    )}
+                    href={notionState.data.hubPageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open in Notion ↗
+                  </a>
+                ) : null}
+                {notionState.kind === "error" ? (
+                  <p className="text-red-200 text-xs px-1">{notionState.message}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* bottom: home link */}
+      {open && (
+        <div className="border-t border-white/15 px-3 py-3">
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 text-xs text-white/45 hover:text-white/80 transition-colors"
           >
-            Open in Notion ↗
-          </a>
-        ) : null}
-      </div>
-      {notionState.kind === "error" ? (
-        <p className="mt-3 text-sm text-red-200">{notionState.message}</p>
-      ) : null}
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Inner content — must be inside AssistantRuntimeProvider to use useAui hooks
-// ---------------------------------------------------------------------------
-
-function ChatContent({
-  confirmed,
-  children,
-}: {
-  confirmed: FestivalSettings | null;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">
-      {/* register the festival settings tool UI (renders nothing, side-effect only) */}
-      <FestivalSettingsToolUI />
-
-      {/* glass thread container */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/25 bg-white/10 shadow-xl backdrop-blur-md">
-        <Thread />
-      </div>
-
-      {/* confirmed settings → ready for notion card */}
-      {confirmed ? <NotionReadyCard confirmed={confirmed} /> : null}
-
-      {children}
-    </div>
+            <ArrowLeft className="size-3" />
+            Home
+          </Link>
+        </div>
+      )}
+    </aside>
   );
 }
 
@@ -231,6 +262,7 @@ function ChatContent({
 
 export default function ChatPage() {
   const [confirmed, setConfirmed] = useState<FestivalSettings | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const runtime = useChatRuntime({
     transport: new AssistantChatTransport({ api: "/api/chat" }),
@@ -239,19 +271,20 @@ export default function ChatPage() {
   return (
     <ConfirmedCtx.Provider value={{ confirmed, onConfirmed: setConfirmed }}>
       <AssistantRuntimeProvider runtime={runtime}>
-        {/* warm terracotta full-page background */}
-        <div className="flex min-h-screen flex-col bg-[#C38F6C]">
-          {/* header — no background, no border */}
-          <header className="sticky top-0 z-20 flex items-center px-5 py-3">
-            <Link
-              href="/"
-              className="font-chella text-xl leading-none text-white drop-shadow-sm hover:opacity-80 transition-opacity"
-            >
-              Notionchella
-            </Link>
-          </header>
+        <div className="flex h-screen overflow-hidden bg-[#C38F6C]">
+          {/* collapsible sidebar */}
+          <Sidebar
+            open={sidebarOpen}
+            onToggle={() => setSidebarOpen((v) => !v)}
+            confirmed={confirmed}
+          />
 
-          <ChatContent confirmed={confirmed} />
+          {/* main chat area — Thread fills all available height */}
+          <main className="flex min-w-0 flex-1 flex-col">
+            {/* register tool UI — side-effect only, renders nothing */}
+            <FestivalSettingsToolUI />
+            <Thread />
+          </main>
         </div>
       </AssistantRuntimeProvider>
     </ConfirmedCtx.Provider>
