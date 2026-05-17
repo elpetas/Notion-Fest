@@ -6,6 +6,10 @@
  */
 
 import { WorkspaceSetupForm } from "@/components/workspace-setup-form";
+<<<<<<< HEAD
+=======
+import { chellaType } from "@/lib/fonts/chella-type";
+>>>>>>> d185e4fa291796d474e37747070634a97f2084d4
 
 export default function Home() {
   return (

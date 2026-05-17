@@ -109,7 +109,7 @@ export async function POST(req: Request): Promise<Response> {
   if (refreshResult.refreshed) newToken = refreshResult.token;
 
   // Step 1: Create media container
-  const containerUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${userId}/media`);
+  const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_VERSION}/${userId}/media`);
   containerUrl.searchParams.set("image_url", imageUrl);
   containerUrl.searchParams.set("caption", caption);
   containerUrl.searchParams.set("access_token", activeToken);
@@ -125,7 +125,7 @@ export async function POST(req: Request): Promise<Response> {
   const containerId = containerData.id;
 
   // Step 2: Publish the container
-  const publishUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${userId}/media_publish`);
+  const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_VERSION}/${userId}/media_publish`);
   publishUrl.searchParams.set("creation_id", containerId);
   publishUrl.searchParams.set("access_token", activeToken);
 
@@ -152,11 +152,14 @@ export async function POST(req: Request): Promise<Response> {
       body: JSON.stringify({
         properties: {
           Published: { checkbox: true },
+          "IG Post ID": {
+            rich_text: [{ type: "text", text: { content: postId } }],
+          },
           Notes: {
             rich_text: [
               {
                 type: "text",
-                text: { content: `Published via Instagram Graph API · Post ID: ${postId}` },
+                text: { content: `Published via Instagram API · Post ID: ${postId}` },
               },
             ],
           },
@@ -172,6 +175,9 @@ export async function POST(req: Request): Promise<Response> {
       page_id: notionPageId,
       properties: {
         Published: { checkbox: true },
+        "IG Post ID": {
+          rich_text: [{ type: "text", text: { content: postId } }],
+        },
       },
     });
   }

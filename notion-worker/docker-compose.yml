@@ -1,0 +1,17 @@
+# Run from this folder: docker compose run --rm ntn workers exec sayHello -d '{"name":"you"}'
+services:
+  ntn:
+    build: .
+    working_dir: /worker
+    env_file:
+      - ../.env
+    environment:
+      NOTION_KEYRING: "0"
+    volumes:
+      - .:/worker
+      - ntn-config:/root/.config/notion
+    stdin_open: true
+    tty: true
+
+volumes:
+  ntn-config:

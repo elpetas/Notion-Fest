@@ -100,7 +100,7 @@ worker.tool("publishInstagramPost", {
       return JSON.stringify({ error: "INSTAGRAM_ACCESS_TOKEN and INSTAGRAM_USER_ID must be configured on this worker" });
     }
 
-    const GRAPH = "https://graph.facebook.com/v21.0";
+    const GRAPH = "https://graph.instagram.com/v21.0";
 
     // Step 1: Create media container
     const containerUrl = new URL(`${GRAPH}/${userId}/media`);
@@ -173,5 +173,108 @@ worker.tool("syncEventbriteTickets", {
     }));
 
     return JSON.stringify(tiers);
+  },
+});
+
+worker.tool("generateDraftContent", {
+  title: "Generate Draft Content",
+  description:
+    "Creates AI draft social copy and a promo image using Eventbrite ticket sales timing (tone), optional Spotify roster context from Notion, and generative models. Proxies to the Notionchella app API — requires NOTIONCHELLA_APP_URL on the worker. Pass empty strings for optional Notion DB IDs you do not use.",
+  schema: j.object({
+    eventId: j.string(),
+    channel: j.string(),
+    rosterDbId: j.string(),
+    socialDbId: j.string(),
+    adCopiesDbId: j.string(),
+    flyerDbId: j.string(),
+    writeToNotion: j.string(),
+    genre: j.string(),
+    vibe: j.string(),
+    generateImage: j.string(),
+  }),
+  hints: { readOnlyHint: false },
+  execute: async (input) => {
+    const appUrl = process.env.NOTIONCHELLA_APP_URL?.trim();
+    if (!appUrl) {
+      return JSON.stringify({
+        error:
+          "NOTIONCHELLA_APP_URL is not configured on this worker. Set it to your deployed Notionchella origin (e.g. https://your-app.vercel.app).",
+      });
+    }
+
+    const channel = ["Instagram", "TikTok", "Email"].includes(input.channel)
+      ? input.channel
+      : "Instagram";
+
+    const body: Record<string, unknown> = {
+      eventId: input.eventId,
+      channel,
+      writeToNotion: input.writeToNotion === "true",
+      generateImage: input.generateImage !== "false",
+    };
+
+    if (input.rosterDbId.trim()) body.rosterDbId = input.rosterDbId.trim();
+    if (input.socialDbId.trim()) body.socialDbId = input.socialDbId.trim();
+    if (input.adCopiesDbId.trim()) body.adCopiesDbId = input.adCopiesDbId.trim();
+    if (input.flyerDbId.trim()) body.flyerDbId = input.flyerDbId.trim();
+    if (input.genre.trim()) body.genre = input.genre.trim();
+    if (input.vibe.trim()) body.vibe = input.vibe.trim();
+
+    const res = await fetch(`${appUrl.replace(/\/$/, "")}/api/content/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = (await res.json()) as Record<string, unknown>;
+    if (!res.ok) {
+      return JSON.stringify({
+        error: (data.error as string) ?? `Generate failed (${res.status})`,
+      });
+    }
+
+    return JSON.stringify(data);
+  },
+});
+
+worker.tool("planFestivalCalendar", {
+  title: "Plan Festival Calendar",
+  description:
+    "Analyzes the Notion festival workspace and returns a marketing + logistics calendar. HACKATHON DEMO MODE: No parameters required! Auto-discovers the first page in workspace and all databases. Optionally set writeToNotion to true to create rows. Requires NOTIONCHELLA_APP_URL.",
+  schema: j.object({
+    writeToNotion: j.string().nullable(),
+    weeksBefore: j.string().nullable(),
+    weeksAfter: j.string().nullable(),
+  }),
+  hints: { readOnlyHint: false },
+  execute: async (input) => {
+    const appUrl = process.env.NOTIONCHELLA_APP_URL?.trim();
+    if (!appUrl) {
+      return JSON.stringify({
+        error: "NOTIONCHELLA_APP_URL is not configured on this worker.",
+      });
+    }
+
+    // Hackathon demo: no IDs required, API auto-discovers everything
+    const body: Record<string, unknown> = {
+      writeToNotion: input.writeToNotion === "true",
+      weeksBefore: parseInt(input.weeksBefore ?? "4", 10) || 4,
+      weeksAfter: parseInt(input.weeksAfter ?? "1", 10) || 1,
+    };
+
+    const res = await fetch(`${appUrl.replace(/\/$/, "")}/api/calendar/plan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = (await res.json()) as Record<string, unknown>;
+    if (!res.ok) {
+      return JSON.stringify({
+        error: (data.error as string) ?? `Calendar plan failed (${res.status})`,
+      });
+    }
+
+    return JSON.stringify(data);
   },
 });

@@ -15,7 +15,7 @@ export function SiteHeader() {
   if (pathname === "/") return null;
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 items-center border-b border-white/15 bg-white/5 px-5 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex h-12 items-center border-b border-white/15 bg-[#C38F6C] px-5">
       <Link
         href="/"
         className="font-chella text-xl leading-none text-white drop-shadow-sm transition-opacity hover:opacity-75"

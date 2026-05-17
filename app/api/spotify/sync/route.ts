@@ -19,10 +19,27 @@ const artistSchema = z.object({
   spotifyUrl: z.string(),
 });
 
+const rosterStatusSchema = z.enum(["wishlist", "pending", "booked"]);
+
 const bodySchema = z.object({
   artists: z.array(artistSchema).min(1),
   notionDbId: z.string().min(1),
+  /** Applied to every artist when status is not set per row */
+  defaultStatus: rosterStatusSchema.optional(),
+  /** Optional per-artist status keyed by Spotify artist id */
+  statusByArtistId: z.record(z.string(), rosterStatusSchema).optional(),
 });
+
+function notionStatusName(status: z.infer<typeof rosterStatusSchema>): string {
+  switch (status) {
+    case "booked":
+      return "Confirmed";
+    case "pending":
+      return "Contacted";
+    default:
+      return "Wishlist";
+  }
+}
 
 export async function POST(req: Request): Promise<Response> {
   let json: unknown;
@@ -40,7 +57,7 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const { artists, notionDbId } = parsed.data;
+  const { artists, notionDbId, defaultStatus, statusByArtistId } = parsed.data;
   const notion = getNotionClient();
 
   const created = await Promise.all(
@@ -57,6 +74,9 @@ export async function POST(req: Request): Promise<Response> {
           .filter(Boolean)
           .join(" · ");
 
+      const bookingStatus =
+        statusByArtistId?.[artist.id] ?? defaultStatus ?? "wishlist";
+
       return notion.pages.create({
         parent: { type: "database_id", database_id: notionDbId },
         properties: {
@@ -67,10 +87,7 @@ export async function POST(req: Request): Promise<Response> {
             rich_text: [{ type: "text", text: { content: notesContent } }],
           },
           Status: {
-            select: { name: "Wishlist" },
-          },
-          "Contract status": {
-            select: { name: "Not sent" },
+            select: { name: notionStatusName(bookingStatus) },
           },
         },
       });
